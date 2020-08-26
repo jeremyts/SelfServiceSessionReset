@@ -1,0 +1,32 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<!--
+Version 1.1
+Written by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th June 2020
+Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 21st August 2020
+-->
+<Sites>
+	<Site>
+		<FriendlyName>Perth Apps</FriendlyName>
+		<Name>PERAPPS</Name>
+		<DeliveryControllers>percxd01.jhouseconsulting.com,percxd02.jhouseconsulting.com</DeliveryControllers>
+		<Port>80</Port>
+		<IncludeDeliveryGroups></IncludeDeliveryGroups>
+		<ExcludeDeliveryGroups></ExcludeDeliveryGroups>
+	</Site>
+	<Site>
+		<FriendlyName>Sydney Apps</FriendlyName>
+		<Name>SYDAPPS</Name>
+		<DeliveryControllers>sydcxd01.jhouseconsulting.com,sydcxd02.jhouseconsulting.com</DeliveryControllers>
+		<Port>80</Port>
+		<IncludeDeliveryGroups></IncludeDeliveryGroups>
+		<ExcludeDeliveryGroups></ExcludeDeliveryGroups>
+	</Site>
+	<Site>
+		<FriendlyName>Melbourne Apps</FriendlyName>
+		<Name>MELAPPS</Name>
+		<DeliveryControllers>melcxd01.jhouseconsulting.com,melcxd02.jhouseconsulting.com</DeliveryControllers>
+		<Port>80</Port>
+		<IncludeDeliveryGroups></IncludeDeliveryGroups>
+		<ExcludeDeliveryGroups></ExcludeDeliveryGroups>
+	</Site>
+</Sites>

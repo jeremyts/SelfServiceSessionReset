@@ -1,0 +1,1040 @@
+﻿<!DOCTYPE html>
+<!--
+Version 1.1
+Written by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th June 2020
+Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 21st August 2020
+-->
+<html>
+<head>
+    <meta charset="utf-8" />
+    <link rel='shortcut icon' type='image/x-icon' href='favicon.ico' />
+    <link rel='icon' type='image/x-icon' href='favicon.ico' />
+    <link href="Content/themes/base/jquery-ui.css" rel="stylesheet" />
+    <script src="Scripts/jquery-3.5.1.min.js"></script>
+    <script src="Scripts/jquery-ui-1.12.1.min.js"></script>
+    <title>Self-Service Session Reset</title>
+</head>
+<body>
+    <style>
+        * {
+            font-family: sans-serif; /* Change your font family */
+        }
+
+        header, .full-width {
+            width: 100%;
+            background-color: #252525;
+            color: #ffffff;
+            text-align: center;
+            margin: 0 auto;
+            padding: 0.25em 0.625em;
+        }
+
+        .tab {
+            margin-left: 40px;
+        }
+
+        select {
+            background-color: #252525;
+            color: #ffffff;
+        }
+
+        .button {
+            background-color: #252525;
+            color: #ffffff;
+            border: none;
+            border-radius: 8px;
+            padding: 0.5em 1em;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            margin: 4px 2px;
+        }
+
+        .content-table {
+            border-collapse: collapse;
+            margin: 25px 0;
+            font-size: 12px;
+            min-width: 400px;
+            border-radius: 5px 5px 0 0;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
+        }
+
+            .content-table thead tr {
+                background-color: #E65400;
+                color: #ffffff;
+                text-align: left;
+                font-weight: bold;
+            }
+
+            .content-table th,
+            .content-table td {
+                padding: 12px 15px;
+            }
+
+            .content-table tbody tr {
+                border-bottom: 1px solid #dddddd;
+            }
+
+                .content-table tbody tr:nth-of-type(even) {
+                    background-color: #f3f3f3;
+                }
+
+                .content-table tbody tr:last-of-type {
+                    border-bottom: 2px solid #E65400;
+                }
+
+                .content-table tbody tr.active-row {
+                    font-weight: bold;
+                    color: #E65400;
+                }
+
+
+        * {
+            box-sizing: border-box;
+        }
+
+        .content-selection {
+            margin: 0 auto;
+        }
+
+            .content-selection select {
+                width: 250px;
+                padding: 5px;
+                font-size: 12px;
+                font-weight: bold;
+                line-height: 1;
+                border-radius: 0;
+                height: 34px;
+                -webkit-border-radius: 10px;
+                -moz-border-radius: 10px;
+                border-radius: 10px;
+                -webkit-box-shadow: 0 3px 0 #ccc;
+                -moz-box-shadow: 0 3px 0 #ccc;
+                box-shadow: 0 3px 0 #ccc;
+            }
+
+        .session-row-disabled {
+            color: #808080;
+        }
+
+        .sessionnotfound {
+            display: none;
+        }
+
+        .processnotfound {
+            display: none;
+        }
+
+        .ui-dialog-titlebar {
+            background-color: #252525;
+            color: #ffffff;
+            background-image: none;
+        }
+
+        .ui-dialog-title {
+            float: none !important;
+            display: block;
+            text-align: center
+        }
+
+        .ui-button.ui-corner-all.ui-widget.ui-button-icon-only.ui-dialog-titlebar-close {
+            display: none;
+        }
+
+        .ui-dialog .ui-dialog-buttonpane {
+            background-color: #252525;
+            color: #ffffff;
+            text-align: center;
+            margin: 0px;
+            padding: 0px;
+        }
+
+            .ui-dialog .ui-dialog-buttonpane .ui-dialog-buttonset {
+                float: none;
+            }
+    </style>
+    <header>
+        <div>
+            <h2>Self-Service Session Reset Tool</h2>
+        </div>
+    </header>
+    <p><b id="welcome"></b></p>
+    <div class="content-selection">
+        Please select a Citrix environment:
+        <select id="selectEnvironment">
+        </select>
+    </div>
+    <div id="dialog">
+        <p id="statusmessage"></p>
+    </div>
+    <!--<br>
+    <label for="search-sessions-input">Search any data in the sessions table:</label>
+    <input id="search-sessions-input" class="form-control" type="text" />-->
+    <table id="sessionsTable" class="content-table">
+        <thead>
+            <tr>
+                <th>
+                    <div class="checkbox">
+                        <input type="checkbox" id="selectAllsessions">
+                        <label for="selectAllsessions"></label>
+                    </div>
+                </th>
+                <!--Add an EM space at the end of each description, which will be replaced with the ascending or descending arrow when selected-->
+                <th data-colname="MachineName" data-order="desc">Machine Name&#8195</th>
+                <th data-colname="SessionState" data-order="desc">Session State&#8195</th>
+                <th data-colname="StartTime" data-order="desc">Start Time&#8195</th>
+                <th data-colname="SessionStateChangeTime" data-order="desc">Session State<br />Change Time&#8195</th>
+                <th data-colname="ApplicationState" data-order="desc">Application State&#8195</th>
+                <th data-colname="ApplicationStateLastChangeTime" data-order="desc">Application State<br />Last Change Time&#8195</th>
+                <th data-colname="ApplicationsInUse" data-order="desc">Applications In Use&#8195</th>
+                <th data-colname="IdleDuration" data-order="desc">Idle Duration&#8195</th>
+                <th data-colname="IdleSince" data-order="desc">Idle Since&#8195</th>
+                <th data-colname="Hidden" data-order="desc">Hidden&#8195</th>
+                <th data-colname="MaintenanceMode" data-order="desc">Maintenance<br />Mode&#8195</th>
+                <th data-colname="PowerState" data-order="desc">Power<br />State&#8195</th>
+                <th data-colname="RegistrationState" data-order="desc">Registration<br />State&#8195</th>
+            </tr>
+        </thead>
+        <!-- Display this <tr> when no record found while search -->
+        <tr class='sessionnotfound'>
+            <td colspan='4'>No session found</td>
+        </tr>
+        <tbody id="sessionsTableBody">
+        </tbody>
+    </table>
+    <p><b>Actions you can take:</b></p>
+    <p>1) Log off an existing session, or sessions. This is the simplest action to take.</p>
+    <p>2) Get the processes for an existing session which will allow you to terminate them.</p>
+    <p>
+        3) Hide a session when logoff does not work. This can only be done when any of the following conditions are true:<br />
+        &nbsp;&nbsp;&nbsp;&nbsp;1) Registration State is Unregistered<br />
+        &nbsp;&nbsp;&nbsp;&nbsp;2) Power State is Off or Unknown<br />
+        &nbsp;&nbsp;&nbsp;&nbsp;3) Maintenance Mode is On<br />
+    </p>
+    <p>
+        &nbsp;&nbsp;&nbsp;&nbsp;Hidden sessions are treated as though they do not exist; allowing you to start a new session. However, depending on the state of the session this action<br />
+        &nbsp;&nbsp;&nbsp;&nbsp;may not release any checked out licenses or locked files you may still have open in that session. Once the session is hidden, it is unable to be unhidden.
+    </p>
+    <p>4) Contact the Service Desk if the above actions do not work, or you are unsure. This tool may not address every scenario.</p>
+    <p>
+        &nbsp;If you see that the Application State of a Session is "Application not running", you may want to use the Get Processes function to verify if there is anything<br />
+        &nbsp;running in the background before logging it off.
+    </p>
+    <p>
+        &nbsp;If the session is greyed out and you are unable to select it, it has purposely been excluded from this tool by design. You will need to contact the Service Desk<br />
+        &nbsp;or an appropriate support team for assistance.
+    </p>
+    <button class="button" id="logoffSessions">Logoff Selected Sessions</button>
+    <button class="button" id="getProcesses">Get Processes</button>
+    <button class="button" id="hideSessions">Hide Stuck Sessions</button>
+    <button class="button" id="terminateProcesses">Terminate Processes</button>
+    <br /><br />
+    <label for="search-processes-input">Search any data in the processes table:</label>
+    <input id="search-processes-input" class="form-control" type="text" />
+    <p>Values in the processes table are not refreshed and only captured at the time you select the Get Processes button.</p>
+    <table id="processesTable" class="content-table">
+        <thead>
+            <tr>
+                <th>
+                    <div class="checkbox">
+                        <input type="checkbox" id="selectAllprocesses">
+                        <label for="selectAllprocesses"></label>
+                    </div>
+                </th>
+                <!--Add an EM space at the end of each description, which will be replaced with the ascending or descending arrow when selected--->
+                <th data-colname="Name " data-order="desc">Name&#8195</th>
+                <th data-colname="PID" data-order="desc">PID&#8195</th>
+                <th data-colname="BytesPrivateMemorySize" data-order="desc">Private Memory<br />in Bytes&#8195</th>
+                <th data-colname="BytesWorkingSet" data-order="desc">Working Set<br />in Bytes&#8195</th>
+                <th data-colname="BytesPeakWorkingSet" data-order="desc">Peak Working Set<br />in Bytes&#8195</th>
+                <th data-colname="BytesPagedMemorySize" data-order="desc">Commit Size<br />in Bytes&#8195</th>
+                <th data-colname="CpuUsagePercentage" data-order="desc">CPU Usage<br />as a Percentage&#8195</th>
+                <th data-colname="HandleCount" data-order="desc">Handle<br />Count&#8195</th>
+                <th data-colname="Threads" data-order="desc">Threads&#8195</th>
+                <th data-colname="CommandLine" data-order="desc">Command Line&#8195</th>
+                <th data-colname="Description" data-order="desc">Description&#8195</th>
+            </tr>
+        </thead>
+        <!-- Display this <tr> when no record found while search -->
+        <tr class='processnotfound'>
+            <td colspan='4'>No process found</td>
+        </tr>
+        <tbody id="processesTableBody">
+        </tbody>
+    </table>
+    <script type="text/javascript">
+        // Create the global variables
+        var sessionsArray = [];
+        var processesArray = [];
+        var username = "";
+        var sitename = "";
+        var deliverycontrollers = "";
+        var port = "";
+        var displayname = "";
+
+        function Get24hourTime() {
+            var time = new Date();
+            var hours = (time.getHours() < 10 ? '0' : '') + time.getHours();
+            var minutes = (time.getMinutes() < 10 ? '0' : '') + time.getMinutes();
+            var seconds = (time.getSeconds() < 10 ? '0' : '') + time.getSeconds();
+            var timestamp = hours + ":" + minutes + ":" + seconds;
+            return timestamp;
+        }
+        var tdCheckboxChecked = 0; // checked checboxes
+
+        // Initialise some tasks on document load
+        $(document).ready(function () {
+            $.ajax({
+                type: "GET",
+                dataType: "json",
+                url: "api/CtxSession/GetLoggedOnUserName",
+                success: function (result) {
+                    username = result
+                    console.info("Username:", result);
+                }
+            });
+            // Lookup the displayname from Active Directory for the welcome message
+            getDisplayName(username)
+            // Load the Site List from an XML file stored under App_Data
+            getCtxSiteList()
+            // Disable the logoffSession button
+            $("#logoffSessions").attr("disabled", true);
+            // Disable the getProcesses button
+            $("#getProcesses").attr("disabled", true);
+            // Disable the hideSession button
+            $("#hideSessions").attr("disabled", true);
+            // Disable the terminateProcess button
+            $("#terminateProcesses").attr("disabled", true);
+        });
+
+        // Initialize the dialog box
+        $("#dialog").dialog({
+            modal: true,
+            autoOpen: false,
+            width: 640,
+            height: 320,
+            resizable: false,
+            draggable: false,
+            title: "Status Messages",
+            //background scrolling with modal
+            allowScrolling: true,
+            close: function (event, ui) { $('#dialog').show(); },
+            open: function (event, ui) {
+                $('.ui-widget-overlay').bind('click', function () {
+                    $("#dialog").dialog('close');
+                });
+            },
+            buttons: {
+                Ok: function () {
+                    $(this).dialog("close");
+                }
+            }
+        });
+
+        ///////////////////////////////////////////////////////////////////////////////
+        // Use a MutationObserver to monitor changes to the #statusmessage so
+        // we can scroll to the bottom of the dialog to ensure the latest
+        // status updates are in view.
+
+        // The node to be monitored
+        var dialogtargetNode = $("#statusmessage")[0];
+
+        // Options for the observer (which mutations to observe)
+        var dialogconfig = { attributes: true, childList: true };
+
+        // Create an observer instance
+        var dialogObserver = new MutationObserver(function (mutations) {
+            mutations.forEach(function (mutation) {
+                var newNodes = mutation.addedNodes; // DOM NodeList
+                if (newNodes !== null) { // If there are new nodes added
+                    if ($('#dialog').dialog('isOpen')) {
+                        $('#dialog').animate({
+                            scrollTop: $(this).scrollTop() + $(this).height()
+                        });
+                    };
+                }
+            });
+        });
+
+        // Pass in the target node, as well as the observer options
+        dialogObserver.observe(dialogtargetNode, dialogconfig);
+
+        ///////////////////////////////////////////////////////////////////////////////
+
+        // This function opens the dialog modal
+        function OpenStatusPopup() {
+            $('#dialog').dialog('open');
+        };
+
+        // Get the Sessions based on Site List Selection
+        $("#selectEnvironment").change(function () {
+            // Set the global variable
+            sitename = $("#selectEnvironment option:selected").data('valuea');
+            console.info("Site Name:", sitename);
+            deliverycontrollers = $("#selectEnvironment option:selected").data('valueb');
+            console.info("Delivery Controllers:", deliverycontrollers);
+            port = $("#selectEnvironment option:selected").data('valuec');
+            console.info("Port:", port);
+            //getSessions(sitename, deliverycontrollers, port, username)
+            OpenStatusPopup()
+            $("#statusmessage").append("<span>" + Get24hourTime() + ": Getting sessions...</br></span>");
+            var querystring = "sitename=" + sitename + "&deliverycontrollers=" + deliverycontrollers + "&port=" + port + "&username=" + username;
+            $.ajax({
+                method: 'GET',
+                url: 'api/CtxSession/GetSessions?' + querystring,
+                success: function (response) {
+                    sessionsArray = response
+                    var message = "";
+                    switch (sessionsArray.length) {
+                        case 0:
+                            message = "There were no sessions found";
+                            break;
+                        case 1:
+                            message = "There was 1 session found";
+                            break;
+                        default:
+                            message = "There were " + sessionsArray.length + " sessions found";
+                    }
+                    OpenStatusPopup()
+                    $("#statusmessage").append("<span>" + Get24hourTime() + ": " + message + "</br></span>");
+                    buildSessionsTable(sessionsArray)
+                    console.info("Sessions:", sessionsArray)
+                }
+            })
+            // Enable the logoffSessions button
+            $("#logoffSessions").attr("disabled", false);
+            //$("#logoffSessions").removeAttr("disabled");
+            // Enable the getProcesses button
+            $("#getProcesses").attr("disabled", false);
+            // Enable the hideSessions button
+            $("#hideSessions").attr("disabled", false);
+            // Enable the terminateProcesses button
+            $("#terminateProcesses").attr("disabled", false);
+        })
+
+        // Create an action to logoff selected sessions
+        $('#logoffSessions').click(function () {
+            var sessions = [];
+            $.each($('input:checkbox[id^="tr-session-checkbox"]:checked'), function (index, value) {
+                var data = $(this).parents('tr:eq(0)');
+                if ($(data).find('td:eq(1)').text() != '') {
+                    sessions.push($(data).find('td:eq(1)').text());
+                }
+            });
+            var message = "";
+            if (sessions.length >= 1) {
+                logoffSessions(deliverycontrollers, port, username, sessions);
+                console.info("Selected sessions:", sessions);
+            } else {
+                message = "No sessions selected";
+            }
+            if (message != "") {
+                OpenStatusPopup()
+                $("#statusmessage").append("<span>" + Get24hourTime() + ": " + message + "</br></span>");
+                console.info(message);
+            }
+        });
+
+        // Create an action to hide selected sessions
+        $('#hideSessions').click(function () {
+            var hide = true;
+            var sessions = [];
+            $.each($('input:checkbox[id^="tr-session-checkbox"]:checked'), function (index, value) {
+                var data = $(this).parents('tr:eq(0)');
+                if ($(data).find('td:eq(1)').text() != '') {
+                    sessions.push($(data).find('td:eq(1)').text());
+                }
+            });
+            var message = "";
+            if (sessions.length >= 1) {
+                hideSessions(sitename, deliverycontrollers, port, username, sessions, hide);
+                console.info("Selected sessions:", sessions);
+            } else {
+                message = "No sessions selected";
+            }
+            if (message != "") {
+                OpenStatusPopup()
+                $("#statusmessage").append("<span>" + Get24hourTime() + ": " + message + "</br></span>");
+                console.info(message);
+            }
+        });
+
+        // Create an action to get the user processes from the selected session
+        $('#getProcesses').click(function () {
+            var sessions = [];
+            $.each($('input:checkbox[id^="tr-session-checkbox"]:checked'), function (index, value) {
+                var sessiondata = $(this).parents('tr:eq(0)');
+                if ($(sessiondata).find('td:eq(1)').text() != '') {
+                    sessions.push($(sessiondata).find('td:eq(1)').text());
+                }
+            });
+            var message = "";
+            if (sessions.length >= 1) {
+                if (sessions.length == 1) {
+                    getProcesses(sessions, username);
+                    console.info("Selected host:", sessions);
+                } else {
+                    message = "More than 1 host was selected";
+                }
+            } else {
+                message = "A host was not selected";
+            }
+            if (message != "") {
+                OpenStatusPopup()
+                $("#statusmessage").append("<span>" + Get24hourTime() + ": " + message + "</br></span>");
+                console.info(message);
+            }
+        });
+
+        // Create an action to terminate the user processes
+        $('#terminateProcesses').click(function () {
+            var remotehost = [];
+            $.each($('input:checkbox[id^="tr-session-checkbox"]:checked'), function (index, value) {
+                var sessiondata = $(this).parents('tr:eq(0)');
+                if ($(sessiondata).find('td:eq(1)').text() != '') {
+                    remotehost.push($(sessiondata).find('td:eq(1)').text());
+                }
+            });
+            var message = "";
+            if (remotehost.length == 1) {
+                remotehost.toString();
+                var pids = [];
+                $.each($('input:checkbox[id^="tr-process-checkbox"]:checked'), function (index, value) {
+                    var processdata = $(this).parents('tr:eq(0)');
+                    if ($(processdata).find('td:eq(2)').text() != '') {
+                        pids.push($(processdata).find('td:eq(2)').text());
+                    }
+                });
+                if (pids.length >= 1) {
+                    terminateProcesses(remotehost, pids);
+                    console.info("Selected PIDs:", pids);
+                } else {
+                    message = "No processes were selected";
+                }
+            } else if (remotehost.length == 0) {
+                message = "No hosts were selected";
+            } else {
+                message = "More than 1 host was selected";
+            }
+            if (message != "") {
+                OpenStatusPopup()
+                $("#statusmessage").append("<span>" + Get24hourTime() + ": " + message + "</br></span>");
+                console.info(message);
+            }
+        });
+
+        ///////////////////////////////////////////////////////////////////////////////
+        // Use a MutationObserver to monitor changes to the #sessionsTableBody so
+        // we can create an event monitor to toggle the main checkbox state.
+
+        // The node to be monitored
+        var sessionsTabletargetNode = document.getElementById('sessionsTableBody');
+
+        // Options for the observer (which mutations to observe)
+        var sessionsTableconfig = { attributes: true, childList: true };
+
+        // Callback function to execute when mutations are observed
+        var sessionsTablecallback = function (mutationsList) {
+            for (var mutation of mutationsList) {
+                if (mutation.type == 'childList') {
+                    //console.log('A child node has been added or removed.');
+                    // Toggle main checkbox state to checked when all non disabled checkboxes inside tbody tag are checked
+                    $('#sessionsTable').find('tbody input:checkbox').on('click', function (e) {
+                        tdCheckboxChecked = $('#sessionsTable').find('tbody input:checkbox:checked').not(":disabled").length; // Get count of checkboxes that is checked
+                        // If all checkboxes are checked, set property of main checkbox to "true", else set to "false"
+                        $('#selectAllsessions').prop('checked', (tdCheckboxChecked === $('#sessionsTable').find('tbody input:checkbox').not(":disabled").length));
+                    });
+                }
+                else if (mutation.type == 'attributes') {
+                    //console.log('The ' + mutation.attributeName + ' attribute was modified.');
+                }
+            }
+        };
+
+        // Create an observer instance linked to the callback function
+        var sessionsTableobserver = new MutationObserver(sessionsTablecallback);
+
+        // Start observing the target node for configured mutations
+        sessionsTableobserver.observe(sessionsTabletargetNode, sessionsTableconfig);
+
+        ///////////////////////////////////////////////////////////////////////////////
+
+        // Create an event when the Select All checkbox in the column header is selected
+        // Select or deselect all enabled checkboxes depending on main checkbox change
+        $('#selectAllsessions').on('click', function (e) {
+            //$(this).closest('table').find('td input:checkbox').prop('checked', this.checked);
+            $(this).closest('table').find('td input:checkbox').not(":disabled").prop('checked', this.checked);
+        });
+
+        // Reorders the sessions table when selecting column headers for ascending and descending
+        $('#sessionsTable th').on('click', function () {
+            if ($(this).parents('table').attr('id') == "sessionsTable") {
+                var column = $(this).data('colname');
+                var order = $(this).data('order');
+                var text = $(this).html();
+                // Skip the checkbox column
+                if (text.toLowerCase().indexOf("checkbox") == -1) {
+                    // Replace the em space with the up or down arrow
+                    text = text.substring(0, text.length - 1);
+                    if (order == 'desc') {
+                        sessionsArray = sessionsArray.sort((a, b) => a[column] > b[column] ? 1 : -1)
+                        $(this).data("order", "asc");
+                        text += '&#9660'
+                    } else {
+                        sessionsArray = sessionsArray.sort((a, b) => a[column] < b[column] ? 1 : -1)
+                        $(this).data("order", "desc");
+                        text += '&#9650'
+                    }
+                    $(this).html(text)
+                    buildSessionsTable(sessionsArray)
+                }
+            }
+        });
+
+        // Search all columns in the Sessions table
+        $('#search-sessions-input').keyup(function () {
+            // Search Text
+            var search = $(this).val();
+            // Hide all table tbody rows
+            $('table tbody tr.session-row').hide();
+            $('table tbody tr.sessionnotfound').hide();
+            // Count total search result
+            var len = $('table tbody tr.session-row:not(.sessionnotfound) td:contains("' + search + '")').length;
+            if (len > 0) {
+                // Searching text in columns and show match row
+                $('table tbody tr.session-row:not(.sessionnotfound) td:contains("' + search + '")').each(function () {
+                    $(this).closest('tr').show();
+                });
+            } else {
+                $('.sessionnotfound').show();
+            }
+        });
+
+        ///////////////////////////////////////////////////////////////////////////////
+        // Use a MutationObserver to monitor changes to the #processesTableBody so
+        // we can create an event monitor to toggle the main checkbox state.
+
+        // The node to be monitored
+        var processesTabletargetNode = document.getElementById('processesTableBody');
+
+        // Options for the observer (which mutations to observe)
+        var processesTableconfig = { attributes: true, childList: true };
+
+        // Callback function to execute when mutations are observed
+        var processesTablecallback = function (mutationsList) {
+            for (var mutation of mutationsList) {
+                if (mutation.type == 'childList') {
+                    //console.log('A child node has been added or removed.');
+                    // Toggle main checkbox state to checked when all checkboxes inside tbody tag are checked
+                    $('#processesTable').find('tbody input:checkbox').on('click', function (e) {
+                        tdCheckboxChecked = $('#processesTable').find('tbody input:checkbox:checked').length; // Get count of checkboxes that is checked
+                        // If all checkboxes are checked, set property of main checkbox to "true", else set to "false"
+                        $('#selectAllprocesses').prop('checked', (tdCheckboxChecked === $('#processesTable').find('tbody input:checkbox').length));
+                    });
+                }
+                else if (mutation.type == 'attributes') {
+                    //console.log('The ' + mutation.attributeName + ' attribute was modified.');
+                }
+            }
+        };
+
+        // Create an observer instance linked to the callback function
+        var processesTableobserver = new MutationObserver(processesTablecallback);
+
+        // Start observing the target node for configured mutations
+        processesTableobserver.observe(processesTabletargetNode, processesTableconfig);
+
+        ///////////////////////////////////////////////////////////////////////////////
+
+        // Create an event when the Select All checkbox in the column header is selected
+        // Select or deselect all checkboxes depending on main checkbox change
+        $('#selectAllprocesses').click(function (e) {
+            $(this).closest('table').find('td input:checkbox').prop('checked', this.checked);
+        });
+
+        // Reorders the processes table when selecting column headers for ascending and descending
+        $('#processesTable th').on('click', function () {
+            if ($(this).parents('table').attr('id') == "processesTable") {
+                var column = $(this).data('colname');
+                var order = $(this).data('order');
+                var text = $(this).html();
+                // Skip the checkbox column
+                if (text.toLowerCase().indexOf("checkbox") == -1) {
+                    // Replace the em space with the up or down arrow
+                    text = text.substring(0, text.length - 1);
+                    if (order == 'desc') {
+                        processesArray = processesArray.sort((a, b) => a[column] > b[column] ? 1 : -1)
+                        $(this).data("order", "asc");
+                        text += '&#9660'
+                    } else {
+                        processesArray = processesArray.sort((a, b) => a[column] < b[column] ? 1 : -1)
+                        $(this).data("order", "desc");
+                        text += '&#9650'
+                    }
+                    $(this).html(text)
+                    buildProcessesTable(processesArray)
+                }
+            }
+        });
+
+        // Search all columns in the Processes table
+        $('#search-processes-input').keyup(function () {
+            // Search Text
+            var search = $(this).val();
+            // Hide all table tbody rows
+            $('table tbody tr.process-row').hide();
+            $('table tbody tr.processnotfound').hide();
+            // Count total search result
+            var len = $('table tbody tr.process-row td:contains("' + search + '")').length;
+            if (len > 0) {
+                // Searching text in columns and show match row
+                $('table tbody tr.process-row td:contains("' + search + '")').each(function () {
+                    $(this).closest('tr').show();
+                });
+            } else {
+                $('.processnotfound').show();
+            }
+        });
+
+        // Case-insensitive searching
+        $.expr[":"].contains = $.expr.createPseudo(function (arg) {
+            return function (elem) {
+                return $(elem).text().toUpperCase().indexOf(arg.toUpperCase()) >= 0;
+            };
+        });
+
+        // This function will build the table of sessions
+        function buildSessionsTable(data) {
+            var table = document.getElementById('sessionsTableBody')
+            table.innerHTML = ''
+
+            for (var i = 0; i < data.length; i++) {
+                // Remove the domain name from the display of the MachineName
+                var MachineName = data[i].MachineName.split('\\')[1];
+                // Join the ApplicationsInUse array using line breaks instead of commas
+                var ApplicationsInUse = "";
+                if (data[i].ApplicationsInUse.length >= 1) {
+                    ApplicationsInUse = data[i].ApplicationsInUse.join("<br />");
+                }
+                // Changing all time stamp data to add a line break between the date and time to reduce column width
+                var StartTime = data[i].StartTime.replace(' ', "<br />")
+                var SessionStateChangeTime = data[i].SessionStateChangeTime.replace(' ', "<br />")
+                var ApplicationStateLastChangeTime = data[i].ApplicationStateLastChangeTime.replace(' ', "<br />")
+                var IdleSince = data[i].IdleSince.replace(' ', "<br />")
+                if (data[i].Include == true) {
+                    var row = `<tr class="session-row">
+                                                <td>
+                                                    <div class="checkbox">
+                                                        <input type="checkbox" id="tr-session-checkbox${i}">
+                                                        <label for="tr-session-checkbox${i}"></label>
+                                                    </div>
+                                                </td>
+                                                <td nowrap="nowrap">${MachineName}</td>
+                                                <td>${data[i].SessionState}</td>
+                                                <td>${StartTime}</td>
+                                                <td>${SessionStateChangeTime}</td>
+                                                <td>${data[i].ApplicationState}</td>
+                                                <td>${ApplicationStateLastChangeTime}</td>
+                                                <td nowrap="nowrap">${ApplicationsInUse}</td>
+                                                <td>${data[i].IdleDuration}</td>
+                                                <td>${IdleSince}</td>
+                                                <td>${data[i].Hidden}</td>
+                                                <td>${data[i].MaintenanceMode}</td>
+                                                <td>${data[i].PowerState}</td>
+                                                <td>${data[i].RegistrationState}</td>
+                                            </tr>`
+                } else {
+                    var row = `<tr class="session-row-disabled">
+                                                <td>
+                                                    <div class="checkbox">
+                                                        <input type="checkbox" id="tr-session-checkbox${i}" disabled/>
+                                                        <label for="tr-session-checkbox${i}"></label>
+                                                    </div>
+                                                </td>
+                                                <td nowrap="nowrap">${MachineName}</td>
+                                                <td>${data[i].SessionState}</td>
+                                                <td>${StartTime}</td>
+                                                <td>${SessionStateChangeTime}</td>
+                                                <td>${data[i].ApplicationState}</td>
+                                                <td>${ApplicationStateLastChangeTime}</td>
+                                                <td nowrap="nowrap">${ApplicationsInUse}</td>
+                                                <td>${data[i].IdleDuration}</td>
+                                                <td>${IdleSince}</td>
+                                                <td>${data[i].Hidden}</td>
+                                                <td>${data[i].MaintenanceMode}</td>
+                                                <td>${data[i].PowerState}</td>
+                                                <td>${data[i].RegistrationState}</td>
+                                            </tr>`
+                }
+                table.innerHTML += row
+            }
+        };
+
+        // This function will build the drop down list of sites
+        function buildDropDownList(data) {
+            $("#selectEnvironment").find('option').remove();
+            $("#selectEnvironment").append('<option value="" selected disabled>Select the Citrix environment</option>');
+            for (var i = 0; i < data.length; i++) {
+                // We need to store multiple values for each option so we do this in html data attributes
+                var valuea = data[i].Name
+                var valueb = data[i].DeliveryControllers
+                var valuec = data[i].Port
+                var option = data[i].FriendlyName
+                $("#selectEnvironment").append('<option value="' + (i + 1) + '" data-valuea="' + valuea + '" data-valueb="' + valueb + '" data-valuec="' + valuec + '">' + option + '</option>');
+            }
+        };
+
+        // This function will build the table of processes
+        function buildProcessesTable(data) {
+            var table = document.getElementById('processesTableBody')
+            table.innerHTML = ''
+
+            for (var i = 0; i < data.length; i++) {
+                var row = `<tr class=process-row>
+                                                <td>
+                                                    <div class="checkbox">
+                                                        <input type="checkbox" id="tr-process-checkbox${i}">
+                                                        <label for="tr-process-checkbox${i}"></label>
+                                                    </div>
+                                                </td>
+                                                <td>${data[i].Name}</td>
+                                                <td>${data[i].PID}</td>
+                                                <td>${data[i].BytesPrivateMemorySize}</td>
+                                                <td>${data[i].BytesWorkingSet}</td>
+                                                <td>${data[i].BytesPeakWorkingSet}</td>
+                                                <td>${data[i].BytesPagedMemorySize}</td>
+                                                <td>${data[i].CpuUsagePercentage}</td>
+                                                <td>${data[i].HandleCount}</td>
+                                                <td>${data[i].Threads}</td>
+                                                <td>${data[i].CommandLine}</td>
+                                                <td>${data[i].Description}</td>
+                                            </tr>`
+                table.innerHTML += row
+            }
+        };
+
+        // This function will get the logged on username in the format of DOMAIN\USERNAME
+        function getLoggedOnUserName() {
+            $.ajax({
+                type: "GET",
+                dataType: "json",
+                url: "api/CtxSession/GetLoggedOnUserName",
+                success: function (result) {
+                    console.info(result);
+                }
+            });
+        };
+
+        // This function will get the diplayname for the logged on user from Active Directory using a callback function.
+        function getDisplayNameCallback(result) {
+            displayname = result;
+            var greeting;
+            var time = new Date().getHours();
+            if (time < 12) {
+                greeting = "Good morning";
+            } else if (time < 18) {
+                greeting = "Good afternoon";
+            } else {
+                greeting = "Good evening";
+            }
+            $("#welcome").text(greeting + " " + displayname)
+        };
+        function getDisplayName(username) {
+            var querystring = "username=" + username;
+            $.ajax({
+                type: "GET",
+                dataType: "json",
+                url: 'api/CtxSession/GetDisplayName?' + querystring,
+                success: function (data) {
+                    console.info("Displayname:", data);
+                    getDisplayNameCallback(data);
+                },
+                error: function (ex) {
+                    console.info("ERROR:", ex);
+                }
+            });
+        };
+
+        // This function will get the list of sites, Delivery Controllers with their port numbers.
+        function getCtxSiteList() {
+            $.ajax({
+                type: "GET",
+                dataType: "json",
+                url: "api/CtxSession/GetSiteList",
+                success: function (result) {
+                    buildDropDownList(result)
+                    console.info("Sites:", result);
+                }
+            });
+        };
+
+        // This function will get the sessions for a user.
+        // It passes the current user, Site Name, Delivery Controllers and port number in the URI.
+        function getSessions(sitename, deliverycontrollers, port, username) {
+            OpenStatusPopup()
+            $("#statusmessage").append("<span>" + Get24hourTime() + ": Getting sessions...</br></span>");
+            var querystring = "sitename=" + sitename + "&deliverycontrollers=" + deliverycontrollers + "&port=" + port + "&username=" + username;
+            $.ajax({
+                method: 'GET',
+                url: 'api/CtxSession/GetSessions?' + querystring,
+                success: function (response) {
+                    sessionsArray = response
+                    var message = "";
+                    switch (sessionsArray.length) {
+                        case 0:
+                            message = "There were no sessions found";
+                            break;
+                        case 1:
+                            message = "There was 1 session found";
+                            break;
+                        default:
+                            message = "There were " + sessionsArray.length + " sessions found";
+                    }
+                    OpenStatusPopup()
+                    $("#statusmessage").append("<span>" + Get24hourTime() + ": " + message + "</br></span>");
+                    buildSessionsTable(sessionsArray)
+                    console.info("Sessions:", sessionsArray)
+                }
+            });
+        };
+
+        // This function will get a sessions for a user.
+        // It passes the current user, Site Name, Delivery Controllers, port number, and the name of the Session Host in the URI.
+        function findSession(sitename, deliverycontrollers, port, username, machinename) {
+            OpenStatusPopup()
+            $("#statusmessage").append("<span>" + Get24hourTime() + ": Finding session" + machinename + "...</br></span>");
+            machinename = $("#findSession").val();
+            var querystring = "machinename=" + machinename + "&sitename=" + sitename + "&deliverycontrollers=" + deliverycontrollers + "&port=" + port + "&username=" + username;
+            $.ajax({
+                type: "GET",
+                dataType: "json",
+                url: 'api/CtxSession/GetSession?' + querystring,
+                success: function (result) {
+                    var message = "";
+                    if (result.length == 1) {
+                        message = "There was 1 session found";
+                    } else {
+                        message = "There were no sessions found";
+                    }
+                    OpenStatusPopup()
+                    $("#statusmessage").append("<span>" + Get24hourTime() + ": " + message + "</br></span>");
+                    buildSessionsTable(result)
+                    console.info("Session:", result)
+                }
+            });
+        };
+
+        // This function will logoff the session(s) for a user.
+        // It passes the Delivery Controllers, port number, current user, and an array of sessions to logoff in the body.
+        function logoffSessions(deliverycontrollers, port, username, sessions) {
+            OpenStatusPopup()
+            $("#statusmessage").append("<span>" + Get24hourTime() + ": Logging off sessions...</br></span>");
+            var sessionsToLogoff = {
+                "DeliveryControllers": deliverycontrollers,
+                "Port": port,
+                "UserName": username,
+                "MachineNames": sessions
+            };
+            $.ajax({
+                type: "DELETE",
+                dataType: "json",
+                url: "api/CtxSession/LogoffSessions",
+                data: sessionsToLogoff,
+                success: function (result) {
+                    console.info(result);
+                    OpenStatusPopup()
+                    $("#statusmessage").append("<span>" + Get24hourTime() + ": Sessions have been logged off. It can take a few seconds to complete. Refresh the page to verify.</br></span>");
+                }
+            });
+        };
+
+        // This function will logoff the session(s) for a user.
+        // It passes the Site Name, Delivery Controllers, port number, current user, and an array of sessions to hide in the body.
+        function hideSessions(sitename, deliverycontrollers, port, username, sessions, hide) {
+            OpenStatusPopup()
+            $("#statusmessage").append("<span>" + Get24hourTime() + ": Hiding sessions...</br></span>");
+            var sessionsToLogoff = {
+                "SiteName": sitename,
+                "DeliveryControllers": deliverycontrollers,
+                "Port": port,
+                "UserName": username,
+                "MachineNames": sessions,
+                "Hide": hide
+            };
+            $.ajax({
+                type: "PUT",
+                dataType: "json",
+                url: "api/CtxSession/HideSessions",
+                data: sessionsToLogoff,
+                success: function (result) {
+                    console.info(result);
+                    OpenStatusPopup()
+                    if (result.toLowerCase().indexOf("does not meet the criteria to be hidden") >= 0) {
+                        $("#statusmessage").append("<span>" + Get24hourTime() + ": " + result + "</br></span>");
+                    }
+                    else {
+                        $("#statusmessage").append("<span>" + Get24hourTime() + ": Sessions have been hidden.Refresh the page to verify.</br></span>");
+                    }
+                }
+            });
+        };
+
+        // This function will get the user processes from a remote host.
+        // It passes the remote host and the current user in the URI.
+        function getProcesses(remotehost, username) {
+            OpenStatusPopup()
+            $("#statusmessage").append("<span>" + Get24hourTime() + ": Getting processes. This can take several seconds...</br></span>");
+            var querystring = "remotehost=" + remotehost + "&username=" + username;
+            $.ajax({
+                type: "GET",
+                dataType: "json",
+                url: "api/UserProcess/Get?" + querystring,
+                success: function (result) {
+                    processesArray = result
+                    buildProcessesTable(processesArray)
+                    console.info("Processes:", result);
+                    var message = "";
+                    switch (processesArray.length) {
+                        case 0:
+                            message = "There were no processes found";
+                            break;
+                        case 1:
+                            message = "There was 1 process found";
+                            break;
+                        default:
+                            message = "There were " + processesArray.length + " processes found";
+                    }
+                    OpenStatusPopup()
+                    $("#statusmessage").append("<span>" + Get24hourTime() + ": " + message + "</br></span>");
+                }
+            });
+        };
+
+        // This function will terminate a processes from a remote host.
+        // It passes the remote host and an array of process IDs(PIDs) in the body.
+        // This allows for multiple processes to easily be passed in an array.
+        function terminateProcesses(remotehost, pids) {
+            OpenStatusPopup()
+            $("#statusmessage").append("<span>" + Get24hourTime() + ": Terminating processes...</br></span>");
+            var processtoterminate = {
+                "RemoteHost": remotehost,
+                "PID": pids
+            };
+            $.ajax({
+                type: "DELETE",
+                dataType: "json",
+                url: "api/UserProcess/Terminate",
+                data: processtoterminate,
+                success: function (result) {
+                    console.info(result);
+                    OpenStatusPopup()
+                    $("#statusmessage").append("<span>" + Get24hourTime() + ": Processes have been terminated. Select the Get Proceeses button to refresh the table.</br></span>");
+                }
+            });
+        };
+
+    </script>
+
+</body>
+</html>
