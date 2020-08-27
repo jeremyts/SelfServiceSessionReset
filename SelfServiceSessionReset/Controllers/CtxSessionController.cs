@@ -58,13 +58,12 @@ namespace SelfServiceSessionReset.Controllers
         public string GetADUserProperties(string username)
         {
             // We can either pass the username in the format of DOMAIN\\USERNAME or just call the GetLoggedOnUser method.
-            // Due to the asynchonous workings of AJAX, it seems to be more reliable to call the GetLoggedOnUser method.
+            // Due to the timing of the asynchronous AJAX response, it seems to be more reliable to call the GetLoggedOnUser method.
             username = GetLoggedOnUser();
             // Split out the user Domain which is especially important when the user account is in a different domain to the app (IIS) server.
             string userdomain = username.Split('\\')[0];
-            //var friendlyname = Thread.GetDomain();
-            //Thread.GetDomain().SetPrincipalPolicy(System.Security.Principal.PrincipalPolicy.WindowsPrincipal);
-            //System.Security.Principal.WindowsPrincipal principal = (System.Security.Principal.WindowsPrincipal)Thread.CurrentPrincipal;
+            Thread.GetDomain().SetPrincipalPolicy(System.Security.Principal.PrincipalPolicy.WindowsPrincipal);
+            System.Security.Principal.WindowsPrincipal principal = (System.Security.Principal.WindowsPrincipal)Thread.CurrentPrincipal;
             string displayName = string.Empty;
             string givenName = string.Empty;
             string surName = string.Empty;
