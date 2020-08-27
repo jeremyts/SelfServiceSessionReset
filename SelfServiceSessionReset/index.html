@@ -1,8 +1,8 @@
 ﻿<!DOCTYPE html>
 <!--
-Version 1.1
+Version 1.2
 Written by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th June 2020
-Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 21st August 2020
+Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 27th August 2020
 -->
 <html>
 <head>
@@ -821,7 +821,8 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 21st August 2020
                 dataType: "json",
                 url: "api/CtxSession/GetLoggedOnUserName",
                 success: function (result) {
-                    console.info(result);
+                    username = result
+                    console.info("Username:", result);
                 }
             });
         };

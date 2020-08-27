@@ -1,6 +1,6 @@
-﻿// Version 1.1
+﻿// Version 1.2
 // Written by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th June 2020
-// Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 21st August 2020
+// Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 27th August 2020
 //
 using System;
 using System.Collections.Generic;
@@ -58,18 +58,25 @@ namespace SelfServiceSessionReset.Controllers
         public string GetADUserProperties(string username)
         {
             // We can either pass the username in the format of DOMAIN\\USERNAME or just call the GetLoggedOnUser method.
-            var userName = GetLoggedOnUser();
-            Thread.GetDomain().SetPrincipalPolicy(System.Security.Principal.PrincipalPolicy.WindowsPrincipal);
-            System.Security.Principal.WindowsPrincipal principal = (System.Security.Principal.WindowsPrincipal)Thread.CurrentPrincipal;
-            string displayName;
-            string givenName;
-            string surName;
-            using (System.DirectoryServices.AccountManagement.PrincipalContext pc = new System.DirectoryServices.AccountManagement.PrincipalContext(System.DirectoryServices.AccountManagement.ContextType.Domain))
+            // Due to the asynchonous workings of AJAX, it seems to be more reliable to call the GetLoggedOnUser method.
+            username = GetLoggedOnUser();
+            // Split out the user Domain which is especially important when the user account is in a different domain to the app (IIS) server.
+            string userdomain = username.Split('\\')[0];
+            //var friendlyname = Thread.GetDomain();
+            //Thread.GetDomain().SetPrincipalPolicy(System.Security.Principal.PrincipalPolicy.WindowsPrincipal);
+            //System.Security.Principal.WindowsPrincipal principal = (System.Security.Principal.WindowsPrincipal)Thread.CurrentPrincipal;
+            string displayName = string.Empty;
+            string givenName = string.Empty;
+            string surName = string.Empty;
+            using (System.DirectoryServices.AccountManagement.PrincipalContext pc = new System.DirectoryServices.AccountManagement.PrincipalContext(System.DirectoryServices.AccountManagement.ContextType.Domain, userdomain))
             {
-                System.DirectoryServices.AccountManagement.UserPrincipal up = System.DirectoryServices.AccountManagement.UserPrincipal.FindByIdentity(pc, userName);
-                givenName = up.GivenName;
-                surName = up.Surname;
-                displayName = up.DisplayName;
+                System.DirectoryServices.AccountManagement.UserPrincipal up = System.DirectoryServices.AccountManagement.UserPrincipal.FindByIdentity(pc, username);
+                if (up != null)
+                {
+                    givenName = up.GivenName;
+                    surName = up.Surname;
+                    displayName = up.DisplayName;
+                }
             }
             return (givenName + " " + surName);
         }
