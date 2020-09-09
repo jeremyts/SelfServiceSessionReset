@@ -492,11 +492,10 @@
             </summary>
             <returns></returns>
         </member>
-        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.GetADUserProperties(System.String)">
+        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.GetADUserProperties">
             <summary>
             Get user properties from Active Directory
             </summary>
-            <param name="username"></param>
             <returns></returns>
         </member>
         <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.XDPing(System.String,System.Int32)">
@@ -549,6 +548,15 @@
             <param name="arrMachineNames"></param>
             <returns></returns>
         </member>
+        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.RestartMachines(System.String,System.String[],System.Boolean)">
+            <summary>
+            Restarts all sepecified machines.
+            </summary>
+            <param name="AdminAddress"></param>
+            <param name="arrMachineNames"></param>
+            <param name="reset"></param>
+            <returns></returns>
+        </member>
         <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.HideSessions(System.String,System.String,System.String[],System.Boolean)">
             <summary>
             Hides all sepecified sessions.
@@ -586,24 +594,22 @@
             </summary>
             <returns>Username</returns>
         </member>
-        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.GetDisplayName(System.String)">
+        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.GetDisplayName">
             <summary>
             This method returns the users Display Name in the format of "firstname surname" which it reads from Active Directory.
             </summary>
-            <param name="username"></param>
             <returns>Display Name</returns>
         </member>
-        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.GetSessions(System.String,System.String,System.String,System.String)">
+        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.GetSessions(System.String,System.String,System.String)">
             <summary>
             This method returns all sessions for the user.
             </summary>
             <param name="sitename"></param>
             <param name="deliverycontrollers"></param>
             <param name="port"></param>
-            <param name="username"></param>
             <returns>All sessions for a user</returns>
         </member>
-        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.GetSession(System.String,System.String,System.String,System.String,System.String)">
+        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.GetSession(System.String,System.String,System.String,System.String)">
             <summary>
             This method returns a session for the user based on the machine name.
             </summary>
@@ -611,21 +617,29 @@
             <param name="sitename"></param>
             <param name="deliverycontrollers"></param>
             <param name="port"></param>
-            <param name="username"></param>
             <returns>A session for a user</returns>
         </member>
         <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.LogoffSessionsByMachineName(SelfServiceSessionReset.Models.CtxSessionsToAction)">
             <summary>
             This method logs off specified sessions.
-            The current user, Delivery Controllers, Port, and an array of sessions to logoff are passed in the body using JSON format.
+            The Delivery Controllers, Port, and an array of sessions to logoff are passed in the body using JSON format.
             </summary>
             <param name="logoffinfo"></param>
+            <returns>Success or failure</returns>
+        </member>
+        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.RestartMachinesByMachineName(SelfServiceSessionReset.Models.CtxSessionsToAction)">
+            <summary>
+            This method restarts specified machines.
+            The Site Name, Delivery Controllers, Port, and an array of sessions to restart are passed in the body using JSON format.
+            Supported on Windows Desktop machines only.
+            </summary>
+            <param name="restartinfo"></param>
             <returns>Success or failure</returns>
         </member>
         <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.HideSessionsByMachineName(SelfServiceSessionReset.Models.CtxSessionsToAction)">
             <summary>
             This method hides specified sessions.
-            The current user, Site Name, Delivery Controllers, Port, and an array of sessions to hide are passed in the body using JSON format.
+            The Site Name, Delivery Controllers, Port, and an array of sessions to hide are passed in the body using JSON format.
             Each machine must meet the following criteria, which prevents users from hiding sessions unnecessarily.
             Registration State must be Unregistered
             OR
@@ -640,6 +654,12 @@
             <summary>
             This is the UserProcessController class.
             </summary>
+        </member>
+        <member name="M:SelfServiceSessionReset.Controllers.UserProcessController.GetLoggedOnUser">
+            <summary>
+            Get the logged in user identify name which is returned in the format of DOMAIN\\USERNAME
+            </summary>
+            <returns></returns>
         </member>
         <member name="M:SelfServiceSessionReset.Controllers.UserProcessController.GetRemoteUserProcesses(System.String,System.String)">
             <summary>
@@ -707,12 +727,11 @@
             <param name="processId"></param>
             <returns></returns>
         </member>
-        <member name="M:SelfServiceSessionReset.Controllers.UserProcessController.GetRemoteProcessesByUsername(System.String,System.String)">
+        <member name="M:SelfServiceSessionReset.Controllers.UserProcessController.GetRemoteProcessesByUsername(System.String)">
             <summary>
-            This method gets the user processes based on the machine name and username passed in the URI.
+            This method gets the user processes based on the machine name passed in the URI.
             </summary>
             <param name="remotehost"></param>
-            <param name="username"></param>
             <returns>List of processes</returns>
         </member>
         <member name="M:SelfServiceSessionReset.Controllers.UserProcessController.TerminateRemoteProcessByID(SelfServiceSessionReset.Models.TerminateProcess)">

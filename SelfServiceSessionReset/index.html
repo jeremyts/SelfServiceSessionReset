@@ -1,8 +1,8 @@
 ﻿<!DOCTYPE html>
 <!--
-Version 1.2
+Version 1.3
 Written by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th June 2020
-Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 27th August 2020
+Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 9th September 2020
 -->
 <html>
 <head>
@@ -190,6 +190,7 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 27th August 2020
                 <th data-colname="ApplicationsInUse" data-order="desc">Applications In Use&#8195</th>
                 <th data-colname="IdleDuration" data-order="desc">Idle Duration&#8195</th>
                 <th data-colname="IdleSince" data-order="desc">Idle Since&#8195</th>
+                <th data-colname="RestartSupported" data-order="desc">Restart<br />Supported&#8195</th>
                 <th data-colname="Hidden" data-order="desc">Hidden&#8195</th>
                 <th data-colname="MaintenanceMode" data-order="desc">Maintenance<br />Mode&#8195</th>
                 <th data-colname="PowerState" data-order="desc">Power<br />State&#8195</th>
@@ -206,8 +207,9 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 27th August 2020
     <p><b>Actions you can take:</b></p>
     <p>1) Log off an existing session, or sessions. This is the simplest action to take.</p>
     <p>2) Get the processes for an existing session which will allow you to terminate them.</p>
+    <p>3) Restart the machine when logoff does not work. This action is only supported on machines where Restart Supported is set to True.</p>
     <p>
-        3) Hide a session when logoff does not work. This can only be done when any of the following conditions are true:<br />
+        4) Hide a session when logoff and/or restart does not work. This can only be done when any of the following conditions are true:<br />
         &nbsp;&nbsp;&nbsp;&nbsp;1) Registration State is Unregistered<br />
         &nbsp;&nbsp;&nbsp;&nbsp;2) Power State is Off or Unknown<br />
         &nbsp;&nbsp;&nbsp;&nbsp;3) Maintenance Mode is On<br />
@@ -216,7 +218,7 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 27th August 2020
         &nbsp;&nbsp;&nbsp;&nbsp;Hidden sessions are treated as though they do not exist; allowing you to start a new session. However, depending on the state of the session this action<br />
         &nbsp;&nbsp;&nbsp;&nbsp;may not release any checked out licenses or locked files you may still have open in that session. Once the session is hidden, it is unable to be unhidden.
     </p>
-    <p>4) Contact the Service Desk if the above actions do not work, or you are unsure. This tool may not address every scenario.</p>
+    <p>5) Contact the Service Desk if the above actions do not work, or you are unsure. This tool may not address every scenario.</p>
     <p>
         &nbsp;If you see that the Application State of a Session is "Application not running", you may want to use the Get Processes function to verify if there is anything<br />
         &nbsp;running in the background before logging it off.
@@ -225,8 +227,9 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 27th August 2020
         &nbsp;If the session is greyed out and you are unable to select it, it has purposely been excluded from this tool by design. You will need to contact the Service Desk<br />
         &nbsp;or an appropriate support team for assistance.
     </p>
-    <button class="button" id="logoffSessions">Logoff Selected Sessions</button>
+    <button class="button" id="logoffSessions">Logoff Sessions</button>
     <button class="button" id="getProcesses">Get Processes</button>
+    <button class="button" id="restartMachines">Restart Machines</button>
     <button class="button" id="hideSessions">Hide Stuck Sessions</button>
     <button class="button" id="terminateProcesses">Terminate Processes</button>
     <br /><br />
@@ -295,14 +298,16 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 27th August 2020
                 }
             });
             // Lookup the displayname from Active Directory for the welcome message
-            getDisplayName(username)
+            getDisplayName()
             // Load the Site List from an XML file stored under App_Data
             getCtxSiteList()
             // Disable the logoffSession button
             $("#logoffSessions").attr("disabled", true);
             // Disable the getProcesses button
             $("#getProcesses").attr("disabled", true);
-            // Disable the hideSession button
+            // Disable the restartMachines button
+            $("#restartMachines").attr("disabled", true);
+            // Disable the hideSessions button
             $("#hideSessions").attr("disabled", true);
             // Disable the terminateProcess button
             $("#terminateProcesses").attr("disabled", true);
@@ -369,6 +374,10 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 27th August 2020
 
         // Get the Sessions based on Site List Selection
         $("#selectEnvironment").change(function () {
+            ProcessSelectEnvironment();
+        })
+
+        function ProcessSelectEnvironment() {
             // Set the global variable
             sitename = $("#selectEnvironment option:selected").data('valuea');
             console.info("Site Name:", sitename);
@@ -376,10 +385,10 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 27th August 2020
             console.info("Delivery Controllers:", deliverycontrollers);
             port = $("#selectEnvironment option:selected").data('valuec');
             console.info("Port:", port);
-            //getSessions(sitename, deliverycontrollers, port, username)
+            //getSessions(sitename, deliverycontrollers, port)
             OpenStatusPopup()
             $("#statusmessage").append("<span>" + Get24hourTime() + ": Getting sessions...</br></span>");
-            var querystring = "sitename=" + sitename + "&deliverycontrollers=" + deliverycontrollers + "&port=" + port + "&username=" + username;
+            var querystring = "sitename=" + sitename + "&deliverycontrollers=" + deliverycontrollers + "&port=" + port;
             $.ajax({
                 method: 'GET',
                 url: 'api/CtxSession/GetSessions?' + querystring,
@@ -407,11 +416,13 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 27th August 2020
             //$("#logoffSessions").removeAttr("disabled");
             // Enable the getProcesses button
             $("#getProcesses").attr("disabled", false);
+            // Enable the restartMachines button
+            $("#restartMachines").attr("disabled", false);
             // Enable the hideSessions button
             $("#hideSessions").attr("disabled", false);
             // Enable the terminateProcesses button
             $("#terminateProcesses").attr("disabled", false);
-        })
+        };
 
         // Create an action to logoff selected sessions
         $('#logoffSessions').click(function () {
@@ -424,7 +435,31 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 27th August 2020
             });
             var message = "";
             if (sessions.length >= 1) {
-                logoffSessions(deliverycontrollers, port, username, sessions);
+                logoffSessions(deliverycontrollers, port, sessions);
+                console.info("Selected sessions:", sessions);
+            } else {
+                message = "No sessions selected";
+            }
+            if (message != "") {
+                OpenStatusPopup()
+                $("#statusmessage").append("<span>" + Get24hourTime() + ": " + message + "</br></span>");
+                console.info(message);
+            }
+        });
+
+        // Create an action to restart selected machines
+        $('#restartMachines').click(function () {
+            var reset = false;
+            var sessions = [];
+            $.each($('input:checkbox[id^="tr-session-checkbox"]:checked'), function (index, value) {
+                var data = $(this).parents('tr:eq(0)');
+                if ($(data).find('td:eq(1)').text() != '') {
+                    sessions.push($(data).find('td:eq(1)').text());
+                }
+            });
+            var message = "";
+            if (sessions.length >= 1) {
+                restartMachines(sitename, deliverycontrollers, port, sessions, reset);
                 console.info("Selected sessions:", sessions);
             } else {
                 message = "No sessions selected";
@@ -448,7 +483,7 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 27th August 2020
             });
             var message = "";
             if (sessions.length >= 1) {
-                hideSessions(sitename, deliverycontrollers, port, username, sessions, hide);
+                hideSessions(sitename, deliverycontrollers, port, sessions, hide);
                 console.info("Selected sessions:", sessions);
             } else {
                 message = "No sessions selected";
@@ -472,7 +507,7 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 27th August 2020
             var message = "";
             if (sessions.length >= 1) {
                 if (sessions.length == 1) {
-                    getProcesses(sessions, username);
+                    getProcesses(sessions);
                     console.info("Selected host:", sessions);
                 } else {
                     message = "More than 1 host was selected";
@@ -724,48 +759,50 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 27th August 2020
                 var IdleSince = data[i].IdleSince.replace(' ', "<br />")
                 if (data[i].Include == true) {
                     var row = `<tr class="session-row">
-                                                <td>
-                                                    <div class="checkbox">
-                                                        <input type="checkbox" id="tr-session-checkbox${i}">
-                                                        <label for="tr-session-checkbox${i}"></label>
-                                                    </div>
-                                                </td>
-                                                <td nowrap="nowrap">${MachineName}</td>
-                                                <td>${data[i].SessionState}</td>
-                                                <td>${StartTime}</td>
-                                                <td>${SessionStateChangeTime}</td>
-                                                <td>${data[i].ApplicationState}</td>
-                                                <td>${ApplicationStateLastChangeTime}</td>
-                                                <td nowrap="nowrap">${ApplicationsInUse}</td>
-                                                <td>${data[i].IdleDuration}</td>
-                                                <td>${IdleSince}</td>
-                                                <td>${data[i].Hidden}</td>
-                                                <td>${data[i].MaintenanceMode}</td>
-                                                <td>${data[i].PowerState}</td>
-                                                <td>${data[i].RegistrationState}</td>
-                                            </tr>`
+                                                        <td>
+                                                            <div class="checkbox">
+                                                                <input type="checkbox" id="tr-session-checkbox${i}">
+                                                                <label for="tr-session-checkbox${i}"></label>
+                                                            </div>
+                                                        </td>
+                                                        <td nowrap="nowrap">${MachineName}</td>
+                                                        <td>${data[i].SessionState}</td>
+                                                        <td>${StartTime}</td>
+                                                        <td>${SessionStateChangeTime}</td>
+                                                        <td>${data[i].ApplicationState}</td>
+                                                        <td>${ApplicationStateLastChangeTime}</td>
+                                                        <td nowrap="nowrap">${ApplicationsInUse}</td>
+                                                        <td>${data[i].IdleDuration}</td>
+                                                        <td>${IdleSince}</td>
+                                                        <td>${data[i].RestartSupported}</td>
+                                                        <td>${data[i].Hidden}</td>
+                                                        <td>${data[i].MaintenanceMode}</td>
+                                                        <td>${data[i].PowerState}</td>
+                                                        <td>${data[i].RegistrationState}</td>
+                                                    </tr>`
                 } else {
                     var row = `<tr class="session-row-disabled">
-                                                <td>
-                                                    <div class="checkbox">
-                                                        <input type="checkbox" id="tr-session-checkbox${i}" disabled/>
-                                                        <label for="tr-session-checkbox${i}"></label>
-                                                    </div>
-                                                </td>
-                                                <td nowrap="nowrap">${MachineName}</td>
-                                                <td>${data[i].SessionState}</td>
-                                                <td>${StartTime}</td>
-                                                <td>${SessionStateChangeTime}</td>
-                                                <td>${data[i].ApplicationState}</td>
-                                                <td>${ApplicationStateLastChangeTime}</td>
-                                                <td nowrap="nowrap">${ApplicationsInUse}</td>
-                                                <td>${data[i].IdleDuration}</td>
-                                                <td>${IdleSince}</td>
-                                                <td>${data[i].Hidden}</td>
-                                                <td>${data[i].MaintenanceMode}</td>
-                                                <td>${data[i].PowerState}</td>
-                                                <td>${data[i].RegistrationState}</td>
-                                            </tr>`
+                                                        <td>
+                                                            <div class="checkbox">
+                                                                <input type="checkbox" id="tr-session-checkbox${i}" disabled/>
+                                                                <label for="tr-session-checkbox${i}"></label>
+                                                            </div>
+                                                        </td>
+                                                        <td nowrap="nowrap">${MachineName}</td>
+                                                        <td>${data[i].SessionState}</td>
+                                                        <td>${StartTime}</td>
+                                                        <td>${SessionStateChangeTime}</td>
+                                                        <td>${data[i].ApplicationState}</td>
+                                                        <td>${ApplicationStateLastChangeTime}</td>
+                                                        <td nowrap="nowrap">${ApplicationsInUse}</td>
+                                                        <td>${data[i].IdleDuration}</td>
+                                                        <td>${IdleSince}</td>
+                                                        <td>${RestartSupported}</td>
+                                                        <td>${data[i].Hidden}</td>
+                                                        <td>${data[i].MaintenanceMode}</td>
+                                                        <td>${data[i].PowerState}</td>
+                                                        <td>${data[i].RegistrationState}</td>
+                                                    </tr>`
                 }
                 table.innerHTML += row
             }
@@ -775,13 +812,23 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 27th August 2020
         function buildDropDownList(data) {
             $("#selectEnvironment").find('option').remove();
             $("#selectEnvironment").append('<option value="" selected disabled>Select the Citrix environment</option>');
+            var datalength = data.length;
+            var setDefault = false;
             for (var i = 0; i < data.length; i++) {
                 // We need to store multiple values for each option so we do this in html data attributes
                 var valuea = data[i].Name
                 var valueb = data[i].DeliveryControllers
                 var valuec = data[i].Port
                 var option = data[i].FriendlyName
-                $("#selectEnvironment").append('<option value="' + (i + 1) + '" data-valuea="' + valuea + '" data-valueb="' + valueb + '" data-valuec="' + valuec + '">' + option + '</option>');
+                if (data[i].Default.toUpperCase() == "TRUE" || datalength == 1) {
+                    setDefault = true;
+                    $("#selectEnvironment").append('<option value="' + (i + 1) + '" data-valuea="' + valuea + '" data-valueb="' + valueb + '" data-valuec="' + valuec + '" selected="selected">' + option + '</option>');
+                } else {
+                    $("#selectEnvironment").append('<option value="' + (i + 1) + '" data-valuea="' + valuea + '" data-valueb="' + valueb + '" data-valuec="' + valuec + '">' + option + '</option>');
+                }
+            }
+            if (setDefault == true) {
+                ProcessSelectEnvironment();
             }
         };
 
@@ -792,24 +839,24 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 27th August 2020
 
             for (var i = 0; i < data.length; i++) {
                 var row = `<tr class=process-row>
-                                                <td>
-                                                    <div class="checkbox">
-                                                        <input type="checkbox" id="tr-process-checkbox${i}">
-                                                        <label for="tr-process-checkbox${i}"></label>
-                                                    </div>
-                                                </td>
-                                                <td>${data[i].Name}</td>
-                                                <td>${data[i].PID}</td>
-                                                <td>${data[i].BytesPrivateMemorySize}</td>
-                                                <td>${data[i].BytesWorkingSet}</td>
-                                                <td>${data[i].BytesPeakWorkingSet}</td>
-                                                <td>${data[i].BytesPagedMemorySize}</td>
-                                                <td>${data[i].CpuUsagePercentage}</td>
-                                                <td>${data[i].HandleCount}</td>
-                                                <td>${data[i].Threads}</td>
-                                                <td>${data[i].CommandLine}</td>
-                                                <td>${data[i].Description}</td>
-                                            </tr>`
+                                                        <td>
+                                                            <div class="checkbox">
+                                                                <input type="checkbox" id="tr-process-checkbox${i}">
+                                                                <label for="tr-process-checkbox${i}"></label>
+                                                            </div>
+                                                        </td>
+                                                        <td>${data[i].Name}</td>
+                                                        <td>${data[i].PID}</td>
+                                                        <td>${data[i].BytesPrivateMemorySize}</td>
+                                                        <td>${data[i].BytesWorkingSet}</td>
+                                                        <td>${data[i].BytesPeakWorkingSet}</td>
+                                                        <td>${data[i].BytesPagedMemorySize}</td>
+                                                        <td>${data[i].CpuUsagePercentage}</td>
+                                                        <td>${data[i].HandleCount}</td>
+                                                        <td>${data[i].Threads}</td>
+                                                        <td>${data[i].CommandLine}</td>
+                                                        <td>${data[i].Description}</td>
+                                                    </tr>`
                 table.innerHTML += row
             }
         };
@@ -841,12 +888,11 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 27th August 2020
             }
             $("#welcome").text(greeting + " " + displayname)
         };
-        function getDisplayName(username) {
-            var querystring = "username=" + username;
+        function getDisplayName() {
             $.ajax({
                 type: "GET",
                 dataType: "json",
-                url: 'api/CtxSession/GetDisplayName?' + querystring,
+                url: 'api/CtxSession/GetDisplayName',
                 success: function (data) {
                     console.info("Displayname:", data);
                     getDisplayNameCallback(data);
@@ -872,10 +918,10 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 27th August 2020
 
         // This function will get the sessions for a user.
         // It passes the current user, Site Name, Delivery Controllers and port number in the URI.
-        function getSessions(sitename, deliverycontrollers, port, username) {
+        function getSessions(sitename, deliverycontrollers, port) {
             OpenStatusPopup()
             $("#statusmessage").append("<span>" + Get24hourTime() + ": Getting sessions...</br></span>");
-            var querystring = "sitename=" + sitename + "&deliverycontrollers=" + deliverycontrollers + "&port=" + port + "&username=" + username;
+            var querystring = "sitename=" + sitename + "&deliverycontrollers=" + deliverycontrollers + "&port=" + port;
             $.ajax({
                 method: 'GET',
                 url: 'api/CtxSession/GetSessions?' + querystring,
@@ -902,11 +948,11 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 27th August 2020
 
         // This function will get a sessions for a user.
         // It passes the current user, Site Name, Delivery Controllers, port number, and the name of the Session Host in the URI.
-        function findSession(sitename, deliverycontrollers, port, username, machinename) {
+        function findSession(sitename, deliverycontrollers, port, machinename) {
             OpenStatusPopup()
             $("#statusmessage").append("<span>" + Get24hourTime() + ": Finding session" + machinename + "...</br></span>");
             machinename = $("#findSession").val();
-            var querystring = "machinename=" + machinename + "&sitename=" + sitename + "&deliverycontrollers=" + deliverycontrollers + "&port=" + port + "&username=" + username;
+            var querystring = "machinename=" + machinename + "&sitename=" + sitename + "&deliverycontrollers=" + deliverycontrollers + "&port=" + port;
             $.ajax({
                 type: "GET",
                 dataType: "json",
@@ -927,14 +973,13 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 27th August 2020
         };
 
         // This function will logoff the session(s) for a user.
-        // It passes the Delivery Controllers, port number, current user, and an array of sessions to logoff in the body.
-        function logoffSessions(deliverycontrollers, port, username, sessions) {
+        // It passes the Delivery Controllers, port number, and an array of sessions to logoff in the body.
+        function logoffSessions(deliverycontrollers, port, sessions) {
             OpenStatusPopup()
             $("#statusmessage").append("<span>" + Get24hourTime() + ": Logging off sessions...</br></span>");
             var sessionsToLogoff = {
                 "DeliveryControllers": deliverycontrollers,
                 "Port": port,
-                "UserName": username,
                 "MachineNames": sessions
             };
             $.ajax({
@@ -945,21 +990,50 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 27th August 2020
                 success: function (result) {
                     console.info(result);
                     OpenStatusPopup()
-                    $("#statusmessage").append("<span>" + Get24hourTime() + ": Sessions have been logged off. It can take a few seconds to complete. Refresh the page to verify.</br></span>");
+                    $("#statusmessage").append("<span>" + Get24hourTime() + ": Sessions are being logged off. It can take a few seconds to complete. Refresh the page to verify.</br></span>");
+                }
+            });
+        };
+
+        // This function will restart the machines(s) for a user.
+        // It passes the Site Name, Delivery Controllers, port number, and an array of sessions to restart in the body.
+        function restartMachines(sitename, deliverycontrollers, port, sessions, reset) {
+            OpenStatusPopup()
+            $("#statusmessage").append("<span>" + Get24hourTime() + ": Restarting machines...</br></span>");
+            var sessionsToLogoff = {
+                "SiteName": sitename,
+                "DeliveryControllers": deliverycontrollers,
+                "Port": port,
+                "MachineNames": sessions,
+                "Reset": reset
+            };
+            $.ajax({
+                type: "PUT",
+                dataType: "json",
+                url: "api/CtxSession/RestartMachines",
+                data: sessionsToLogoff,
+                success: function (result) {
+                    console.info(result);
+                    OpenStatusPopup()
+                    if (result.toLowerCase().indexOf("does not meet the criteria to be restarted") >= 0) {
+                        $("#statusmessage").append("<span>" + Get24hourTime() + ": " + result + "</br></span>");
+                    }
+                    else {
+                        $("#statusmessage").append("<span>" + Get24hourTime() + ": Machines are restarting. It can take a several seconds to complete. Refresh the page to verify.</br></span>");
+                    }
                 }
             });
         };
 
         // This function will logoff the session(s) for a user.
-        // It passes the Site Name, Delivery Controllers, port number, current user, and an array of sessions to hide in the body.
-        function hideSessions(sitename, deliverycontrollers, port, username, sessions, hide) {
+        // It passes the Site Name, Delivery Controllers, port number, and an array of sessions to hide in the body.
+        function hideSessions(sitename, deliverycontrollers, port, sessions, hide) {
             OpenStatusPopup()
             $("#statusmessage").append("<span>" + Get24hourTime() + ": Hiding sessions...</br></span>");
             var sessionsToLogoff = {
                 "SiteName": sitename,
                 "DeliveryControllers": deliverycontrollers,
                 "Port": port,
-                "UserName": username,
                 "MachineNames": sessions,
                 "Hide": hide
             };
@@ -975,7 +1049,7 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 27th August 2020
                         $("#statusmessage").append("<span>" + Get24hourTime() + ": " + result + "</br></span>");
                     }
                     else {
-                        $("#statusmessage").append("<span>" + Get24hourTime() + ": Sessions have been hidden.Refresh the page to verify.</br></span>");
+                        $("#statusmessage").append("<span>" + Get24hourTime() + ": Sessions have been hidden. Refresh the page to verify.</br></span>");
                     }
                 }
             });
@@ -983,10 +1057,10 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 27th August 2020
 
         // This function will get the user processes from a remote host.
         // It passes the remote host and the current user in the URI.
-        function getProcesses(remotehost, username) {
+        function getProcesses(remotehost) {
             OpenStatusPopup()
             $("#statusmessage").append("<span>" + Get24hourTime() + ": Getting processes. This can take several seconds...</br></span>");
-            var querystring = "remotehost=" + remotehost + "&username=" + username;
+            var querystring = "remotehost=" + remotehost;
             $.ajax({
                 type: "GET",
                 dataType: "json",
@@ -1030,7 +1104,7 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 27th August 2020
                 success: function (result) {
                     console.info(result);
                     OpenStatusPopup()
-                    $("#statusmessage").append("<span>" + Get24hourTime() + ": Processes have been terminated. Select the Get Proceeses button to refresh the table.</br></span>");
+                    $("#statusmessage").append("<span>" + Get24hourTime() + ": Processes have been terminated. Select the Get Processes button to refresh the table.</br></span>");
                 }
             });
         };

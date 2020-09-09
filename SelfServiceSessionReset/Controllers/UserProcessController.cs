@@ -1,6 +1,6 @@
-﻿// Version 1.0
+﻿// Version 1.1
 // Written by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th June 2020
-// Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 2nd August 2020
+// Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 9th September 2020
 //
 using System;
 using System.Collections.Generic;
@@ -18,6 +18,10 @@ using System.Dynamic;
 using System.Threading;
 // Required for StringBuilder
 using System.Text;
+// Required for both:
+// HttpContext.Current.Server.MapPath
+// HttpContext.Current.Request.LogonUserIdentity.Name
+using System.Web;
 
 namespace SelfServiceSessionReset.Controllers
 {
@@ -28,12 +32,22 @@ namespace SelfServiceSessionReset.Controllers
     public class UserProcessController : ApiController
     {
         /// <summary>
+        /// Get the logged in user identify name which is returned in the format of DOMAIN\\USERNAME
+        /// </summary>
+        /// <returns></returns>
+        private string GetLoggedOnUser()
+        {
+            var userName = HttpContext.Current.Request.LogonUserIdentity.Name;
+            return (userName);
+        }
+
+        /// <summary>
         /// This method returns all the processes.
         /// </summary>
         /// <param name="remotehost"></param>
         /// <param name="username"></param>
         /// <returns></returns>
-        public List<UserProcess> GetRemoteUserProcesses(string remotehost, string username)
+        private List<UserProcess> GetRemoteUserProcesses(string remotehost, string username)
         {
             string result = string.Empty;
             List<UserProcess> userprocesses = new List<UserProcess> { };
@@ -100,7 +114,7 @@ namespace SelfServiceSessionReset.Controllers
         /// <param name="processId"></param>
         /// <param name="remotehost"></param>
         /// <returns></returns>
-        public ExpandoObject GetProcessExtraInformation(int processId, string remotehost)
+        private ExpandoObject GetProcessExtraInformation(int processId, string remotehost)
         {
             ConnectionOptions connOptions = new ConnectionOptions();
             connOptions.Impersonation = ImpersonationLevel.Impersonate;
@@ -164,7 +178,7 @@ namespace SelfServiceSessionReset.Controllers
         /// </summary>
         /// <param name="number"></param>
         /// <returns></returns>
-        public string BytesToReadableValue(long number)
+        private string BytesToReadableValue(long number)
         {
             List<string> suffixes = new List<string> { " B", " KB", " MB", " GB", " TB", " PB" };
 
@@ -188,7 +202,7 @@ namespace SelfServiceSessionReset.Controllers
         /// <param name="processId"></param>
         /// <param name="remotehost"></param>
         /// <returns></returns>
-        public ExpandoObject GetPerfMonCounterInformation(string processName, int processId, string remotehost)
+        private ExpandoObject GetPerfMonCounterInformation(string processName, int processId, string remotehost)
         {
             string result = "";
             // Get the number of logical processors from the remote host
@@ -227,7 +241,7 @@ namespace SelfServiceSessionReset.Controllers
         /// <param name="processCounterName"></param>
         /// <param name="remotehost"></param>
         /// <returns></returns>
-        public static PerformanceCounter GetPerfCounterForProcessId(string processName, int processId, string processCounterName, string remotehost)
+        private PerformanceCounter GetPerfCounterForProcessId(string processName, int processId, string processCounterName, string remotehost)
         {
             // Find the process counter instance by process ID
             string instance = GetInstanceNameForProcessId(processName, processId, remotehost);
@@ -244,7 +258,7 @@ namespace SelfServiceSessionReset.Controllers
         /// <param name="processId"></param>
         /// <param name="remotehost"></param>
         /// <returns></returns>
-        public static string GetInstanceNameForProcessId(string processName, int processId, string remotehost)
+        private string GetInstanceNameForProcessId(string processName, int processId, string remotehost)
         {
             string result = "";
             try
@@ -282,7 +296,7 @@ namespace SelfServiceSessionReset.Controllers
         /// </summary>
         /// <param name="remotehost"></param>
         /// <returns></returns>
-        public int GetLogicalProcessors(string remotehost)
+        private int GetLogicalProcessors(string remotehost)
         {
             ConnectionOptions connOptions = new ConnectionOptions();
             connOptions.Impersonation = ImpersonationLevel.Impersonate;
@@ -321,7 +335,7 @@ namespace SelfServiceSessionReset.Controllers
         /// <param name="remotehost"></param>
         /// <param name="processId"></param>
         /// <returns></returns>
-        public string TerminateRemoteProcess(string remotehost, int processId)
+        private string TerminateRemoteProcess(string remotehost, int processId)
         {
             string result = "Process ID " + processId + " not found";
             try
@@ -385,17 +399,17 @@ namespace SelfServiceSessionReset.Controllers
             return result;
         }
 
-        // GET: api/UserProcess/Get?username=&remotehost=
+        // GET: api/UserProcess/Get?remotehost=
         /// <summary>
-        /// This method gets the user processes based on the machine name and username passed in the URI.
+        /// This method gets the user processes based on the machine name passed in the URI.
         /// </summary>
         /// <param name="remotehost"></param>
-        /// <param name="username"></param>
         /// <returns>List of processes</returns>
         [Route("Get")]
         [HttpGet]
-        public IEnumerable<UserProcess> GetRemoteProcessesByUsername(string remotehost, string username)
+        public IEnumerable<UserProcess> GetRemoteProcessesByUsername(string remotehost)
         {
+            string username = GetLoggedOnUser();
             // return the output of he function, which is the UserProcess list
             return GetRemoteUserProcesses(remotehost, username);
         }

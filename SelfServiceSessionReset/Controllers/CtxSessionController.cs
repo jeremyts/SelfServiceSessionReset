@@ -1,6 +1,6 @@
-﻿// Version 1.2
+﻿// Version 1.3
 // Written by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th June 2020
-// Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 27th August 2020
+// Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 9th September 2020
 //
 using System;
 using System.Collections.Generic;
@@ -23,7 +23,9 @@ using System.Dynamic;
 using System.Text;
 // required for loading XML documents
 using System.Xml.Linq;
-// required for HttpContext.Current.Server.MapPath
+// Required for both:
+// HttpContext.Current.Server.MapPath
+// HttpContext.Current.Request.LogonUserIdentity.Name
 using System.Web;
 // Required for File.ReadAllText
 using System.IO;
@@ -44,7 +46,7 @@ namespace SelfServiceSessionReset.Controllers
         /// Get the logged in user identify name which is returned in the format of DOMAIN\\USERNAME
         /// </summary>
         /// <returns></returns>
-        public string GetLoggedOnUser()
+        private string GetLoggedOnUser()
         {
             var userName = HttpContext.Current.Request.LogonUserIdentity.Name;
             return (userName);
@@ -53,13 +55,11 @@ namespace SelfServiceSessionReset.Controllers
         /// <summary>
         /// Get user properties from Active Directory
         /// </summary>
-        /// <param name="username"></param>
         /// <returns></returns>
-        public string GetADUserProperties(string username)
+        private string GetADUserProperties()
         {
-            // We can either pass the username in the format of DOMAIN\\USERNAME or just call the GetLoggedOnUser method.
-            // Due to the timing of the asynchronous AJAX response, it seems to be more reliable to call the GetLoggedOnUser method.
-            username = GetLoggedOnUser();
+            // Get the current logged on username in the format of DOMAIN\\USERNAME
+            string username = GetLoggedOnUser();
             // Split out the user Domain which is especially important when the user account is in a different domain to the app (IIS) server.
             string userdomain = username.Split('\\')[0];
             Thread.GetDomain().SetPrincipalPolicy(System.Security.Principal.PrincipalPolicy.WindowsPrincipal);
@@ -86,7 +86,7 @@ namespace SelfServiceSessionReset.Controllers
         /// <param name="deliverycontroller"></param>
         /// <param name="port"></param>
         /// <returns></returns>
-        public bool XDPing(string deliverycontroller, int port)
+        private bool XDPing(string deliverycontroller, int port)
         {
             string service = "http://" + deliverycontroller + "/Citrix/CdsController/IRegistrar";
             string s = string.Format("POST {0} HTTP/1.1\r\nContent-Type: application/soap+xml; charset=utf-8\r\nHost: {1}:{2}\r\nContent-Length: 1\r\nExpect: 100-continue\r\nConnection: Close\r\n\r\n", (object)service, (object)deliverycontroller, (object)port);
@@ -129,7 +129,7 @@ namespace SelfServiceSessionReset.Controllers
         /// <param name="AdminAddress"></param>
         /// <param name="UserName"></param>
         /// <returns></returns>
-        public List<CtxSession> GetCurrentSessions(string SiteName, string AdminAddress, string UserName)
+        private List<CtxSession> GetCurrentSessions(string SiteName, string AdminAddress, string UserName)
         {
             StringBuilder stringBuilder = new StringBuilder();
             List<CtxSession> sessions = new List<CtxSession> { };
@@ -163,9 +163,7 @@ namespace SelfServiceSessionReset.Controllers
                         string SessionState = string.Empty;
                         string StartTime = string.Empty;
                         string SessionStateChangeTime = string.Empty;
-                        string EstablishmentDuration = string.Empty;
-                        string EstablishmentTime = string.Empty;
-                        string DesktopKind = string.Empty;
+                        string OSType = string.Empty;
                         string SessionSupport = string.Empty;
                         string SessionId = string.Empty;
                         string ApplicationState = string.Empty;
@@ -173,6 +171,7 @@ namespace SelfServiceSessionReset.Controllers
                         string[] ApplicationsInUse = new string[] { };
                         string IdleDuration = string.Empty;
                         string IdleSince = string.Empty;
+                        string RestartSupported = string.Empty;
                         string Hidden = string.Empty;
                         string PowerState = string.Empty;
                         string RegistrationState = string.Empty;
@@ -192,10 +191,7 @@ namespace SelfServiceSessionReset.Controllers
                                 StartTime = obj.Properties["StartTime"].Value.ToString();
                             }
                             SessionStateChangeTime = obj.Properties["SessionStateChangeTime"].Value.ToString();
-                            if (obj.Properties["EstablishmentTime"].Value != null)
-                            {
-                                EstablishmentTime = obj.Properties["EstablishmentTime"].Value.ToString();
-                            }
+                            OSType = obj.Properties["OSType"].Value.ToString();
                             SessionSupport = obj.Properties["SessionSupport"].Value.ToString();
                             SessionId = obj.Properties["SessionId"].Value.ToString();
                             ApplicationState = obj.Properties["AppState"].Value.ToString();
@@ -217,6 +213,11 @@ namespace SelfServiceSessionReset.Controllers
                             {
                                 IdleSince = obj.Properties["IdleSince"].Value.ToString();
                             }
+                            RestartSupported = "False";
+                            if (OSType.IndexOf("20", StringComparison.CurrentCultureIgnoreCase) < 0 && SessionSupport == "SingleSession")
+                            {
+                                RestartSupported = "True";
+                            }
                             Hidden = obj.Properties["Hidden"].Value.ToString();
                             PowerState = obj.Properties["PowerState"].Value.ToString();
 
@@ -233,7 +234,7 @@ namespace SelfServiceSessionReset.Controllers
                                 SessionState = SessionState,
                                 StartTime = StartTime,
                                 SessionStateChangeTime = SessionStateChangeTime,
-                                EstablishmentTime = EstablishmentTime,
+                                OSType = OSType,
                                 SessionSupport = SessionSupport,
                                 SessionId = SessionId,
                                 ApplicationState = ApplicationState,
@@ -241,6 +242,7 @@ namespace SelfServiceSessionReset.Controllers
                                 ApplicationsInUse = ApplicationsInUse,
                                 IdleDuration = IdleDuration,
                                 IdleSince = IdleSince,
+                                RestartSupported = RestartSupported,
                                 Hidden = Hidden,
                                 PowerState = PowerState,
                                 RegistrationState = extraSessionInfo.RegistrationState,
@@ -264,7 +266,7 @@ namespace SelfServiceSessionReset.Controllers
         /// <param name="AdminAddress"></param>
         /// <param name="MachineName"></param>
         /// <returns></returns>
-        public ExpandoObject GetSessionExtraInformation(string AdminAddress, string MachineName)
+        private ExpandoObject GetSessionExtraInformation(string AdminAddress, string MachineName)
         {
             StringBuilder stringBuilder = new StringBuilder();
             // Create a dynamic object to store some properties
@@ -332,7 +334,7 @@ namespace SelfServiceSessionReset.Controllers
         /// <param name="SiteName"></param>
         /// <param name="DeliveryGroup"></param>
         /// <returns></returns>
-        public bool IncludeDeliveryGroup(string SiteName, string DeliveryGroup)
+        private bool IncludeDeliveryGroup(string SiteName, string DeliveryGroup)
         {
             bool leave = false;
             bool include = false;
@@ -402,7 +404,7 @@ namespace SelfServiceSessionReset.Controllers
         /// <param name="UserName"></param>
         /// <param name="arrMachineNames"></param>
         /// <returns></returns>
-        public string LogoffSessions(string AdminAddress, string UserName, string[] arrMachineNames)
+        private string LogoffSessions(string AdminAddress, string UserName, string[] arrMachineNames)
         {
             Runspace runSpace = RunspaceFactory.CreateRunspace();
             runSpace.Open();
@@ -458,6 +460,73 @@ namespace SelfServiceSessionReset.Controllers
         }
 
         /// <summary>
+        /// Restarts all sepecified machines.
+        /// </summary>
+        /// <param name="AdminAddress"></param>
+        /// <param name="arrMachineNames"></param>
+        /// <param name="reset"></param>
+        /// <returns></returns>
+        private string RestartMachines(string AdminAddress, string[] arrMachineNames, bool reset)
+        {
+            Runspace runSpace = RunspaceFactory.CreateRunspace();
+            runSpace.Open();
+            PowerShell ps = PowerShell.Create();
+            ps.Runspace = runSpace;
+            PSSnapInException psex;
+            runSpace.RunspaceConfiguration.AddPSSnapIn("Citrix.Broker.Admin.V2", out psex);
+            StringBuilder stringBuilder = new StringBuilder();
+            foreach (string machinename in arrMachineNames)
+            {
+                stringBuilder.AppendLine("Restarting " + machinename);
+                Pipeline pipeline = runSpace.CreatePipeline();
+                Command getSession = new Command("New-BrokerHostingPowerAction");
+                getSession.Parameters.Add("AdminAddress", AdminAddress);
+                getSession.Parameters.Add("MachineName", machinename);
+                if (reset == false)
+                {
+                    getSession.Parameters.Add("Action", "Restart");
+                }
+                else
+                {
+                    getSession.Parameters.Add("Action", "Reset");
+                }
+                pipeline.Commands.Add(getSession);
+                try
+                {
+                    Collection<PSObject> commandResults = pipeline.Invoke();
+                    bool IsCollectionNullOrEmpty = !(commandResults?.Any() ?? false);
+                    if (IsCollectionNullOrEmpty == false)
+                    {
+                        foreach (PSObject obj in commandResults)
+                        {
+                            if (!(obj is null))
+                            {
+                                //stringBuilder.AppendLine(obj.ToString());
+                                stringBuilder.AppendLine("Restart state: " + obj.Properties["State"].Value.ToString());
+
+                            }
+                            else
+                            {
+                                stringBuilder.AppendLine("Failed to restart " + machinename);
+                            }
+                        };
+                    }
+                    else
+                    {
+                        stringBuilder.AppendLine("Successfully restarted " + machinename);
+                    }
+                    pipeline.Dispose();
+                }
+                catch (Exception e)
+                {
+                    stringBuilder.AppendLine("ERROR: " + e.Message);
+                }
+            }
+            runSpace.Close();
+            return stringBuilder.ToString();
+        }
+
+        /// <summary>
         /// Hides all sepecified sessions.
         /// </summary>
         /// <param name="AdminAddress"></param>
@@ -465,7 +534,7 @@ namespace SelfServiceSessionReset.Controllers
         /// <param name="arrMachineNames"></param>
         /// <param name="hide"></param>
         /// <returns></returns>
-        public string HideSessions(string AdminAddress, string UserName, string[] arrMachineNames, bool hide)
+        private string HideSessions(string AdminAddress, string UserName, string[] arrMachineNames, bool hide)
         {
             Runspace runSpace = RunspaceFactory.CreateRunspace();
             runSpace.Open();
@@ -527,7 +596,7 @@ namespace SelfServiceSessionReset.Controllers
         /// <param name="usexml"></param>
         /// <param name="usejson"></param>
         /// <returns></returns>
-        public List<CtxSites> GetAllSites(bool usexml, bool usejson)
+        private List<CtxSites> GetAllSites(bool usexml, bool usejson)
         {
             List<CtxSites> sites = new List<CtxSites>();
             if (usexml)
@@ -542,6 +611,7 @@ namespace SelfServiceSessionReset.Controllers
                         site.Name = element.Element("Name").Value;
                         site.DeliveryControllers = element.Element("DeliveryControllers").Value;
                         site.Port = element.Element("Port").Value;
+                        site.Default = element.Element("Default").Value;
                         sites.Add(site);
                     }
                 }
@@ -582,31 +652,29 @@ namespace SelfServiceSessionReset.Controllers
             return Ok(GetLoggedOnUser());
         }
 
-        // GET: api/CtxSession/GetDisplayName?username=
+        // GET: api/CtxSession/GetDisplayName
         /// <summary>
         /// This method returns the users Display Name in the format of "firstname surname" which it reads from Active Directory.
         /// </summary>
-        /// <param name="username"></param>
         /// <returns>Display Name</returns>
         [Route("GetDisplayName")]
         [HttpGet]
-        public IHttpActionResult GetDisplayName(string username)
+        public IHttpActionResult GetDisplayName()
         {
-            return Ok(GetADUserProperties(username));
+            return Ok(GetADUserProperties());
         }
 
-        // GET: api/CtxSession/GetSessions?sitename=&deliverycontrollers=&port=&username=
+        // GET: api/CtxSession/GetSessions?sitename=&deliverycontrollers=&port=
         /// <summary>
         /// This method returns all sessions for the user.
         /// </summary>
         /// <param name="sitename"></param>
         /// <param name="deliverycontrollers"></param>
         /// <param name="port"></param>
-        /// <param name="username"></param>
         /// <returns>All sessions for a user</returns>
         [Route("GetSessions")]
         [HttpGet]
-        public IEnumerable<CtxSession> GetSessions(string sitename, string deliverycontrollers, string port, string username)
+        public IEnumerable<CtxSession> GetSessions(string sitename, string deliverycontrollers, string port)
         {
             int.TryParse(port, out int intport);
             string deliverycontroller = string.Empty;
@@ -619,10 +687,11 @@ namespace SelfServiceSessionReset.Controllers
                     break;
                 }
             }
+            string username = GetLoggedOnUser();
             return GetCurrentSessions(sitename, deliverycontroller, username);
         }
 
-        // GET: api/CtxSession/GetSession?machinename=&sitename=&deliverycontrollers=&port=&username=
+        // GET: api/CtxSession/GetSession?machinename=&sitename=&deliverycontrollers=&port=
         /// <summary>
         /// This method returns a session for the user based on the machine name.
         /// </summary>
@@ -630,11 +699,10 @@ namespace SelfServiceSessionReset.Controllers
         /// <param name="sitename"></param>
         /// <param name="deliverycontrollers"></param>
         /// <param name="port"></param>
-        /// <param name="username"></param>
         /// <returns>A session for a user</returns>
         [Route("GetSession")]
         [HttpGet]
-        public IEnumerable<CtxSession> GetSession(string machinename, string sitename, string deliverycontrollers, string port, string username)
+        public IEnumerable<CtxSession> GetSession(string machinename, string sitename, string deliverycontrollers, string port)
         {
             int.TryParse(port, out int intport);
             string deliverycontroller = string.Empty;
@@ -647,6 +715,7 @@ namespace SelfServiceSessionReset.Controllers
                     break;
                 }
             }
+            string username = GetLoggedOnUser();
             CtxSession[] sessionArray = GetCurrentSessions(sitename, deliverycontroller, username).Where<CtxSession>(c => c.MachineName.Contains(machinename)).ToArray<CtxSession>();
             return sessionArray;
         }
@@ -654,7 +723,7 @@ namespace SelfServiceSessionReset.Controllers
         // DELETE: api/CtxSession/LogoffSessions
         /// <summary>
         /// This method logs off specified sessions.
-        /// The current user, Delivery Controllers, Port, and an array of sessions to logoff are passed in the body using JSON format.
+        /// The Delivery Controllers, Port, and an array of sessions to logoff are passed in the body using JSON format.
         /// </summary>
         /// <param name="logoffinfo"></param>
         /// <returns>Success or failure</returns>
@@ -673,16 +742,67 @@ namespace SelfServiceSessionReset.Controllers
                     break;
                 }
             }
-            string username = logoffinfo.UserName;
+            string username = GetLoggedOnUser();
             string[] machinearray = logoffinfo.MachineNames.ToArray();
             string result = LogoffSessions(deliverycontroller, username, machinearray);
+            return Ok(result);
+        }
+
+        // PUT: api/CtxSession/RestartMachines
+        /// <summary>
+        /// This method restarts specified machines.
+        /// The Site Name, Delivery Controllers, Port, and an array of sessions to restart are passed in the body using JSON format.
+        /// Supported on Windows Desktop machines only.
+        /// </summary>
+        /// <param name="restartinfo"></param>
+        /// <returns>Success or failure</returns>
+        [Route("RestartMachines")]
+        [HttpPut]
+        public IHttpActionResult RestartMachinesByMachineName([FromBody]CtxSessionsToAction restartinfo)
+        {
+            int.TryParse(restartinfo.Port, out int intport);
+            bool reset = restartinfo.Reset;
+            string sitename = restartinfo.SiteName;
+            string deliverycontroller = string.Empty;
+            string[] strArray = restartinfo.DeliveryControllers.Split(',');
+            foreach (string strItem in strArray)
+            {
+                deliverycontroller = strItem;
+                if (XDPing(deliverycontroller, intport))
+                {
+                    break;
+                }
+            }
+            string username = GetLoggedOnUser();
+            string[] machinearray = restartinfo.MachineNames.ToArray();
+            string result = string.Empty;
+            // Create a new array by verifying that each machine meets the following criteria. 
+            // - OSType does not contain 20 for Windows 2008 R2, 2012 R2, 2016, 2019, etc
+            // AND
+            // - SessionSupport must be SingleSession
+            List<string> CriteriaMetList = new List<string>();
+            foreach (string machinename in machinearray)
+            {
+                CtxSession[] sessionArray = GetCurrentSessions(sitename, deliverycontroller, username).Where<CtxSession>(c => c.MachineName.Contains(machinename) && !c.OSType.Contains("20") && c.SessionSupport == "SingleSession").ToArray<CtxSession>();
+                if (sessionArray.Length == 1)
+                {
+                    CriteriaMetList.Add(machinename);
+                    result += machinename + " meets the criteria to be restarted" + Environment.NewLine;
+
+                }
+                else if (sessionArray.Length == 0)
+                {
+                    result += machinename + " does not meet the criteria to be restarted" + Environment.NewLine;
+                }
+            }
+            result += RestartMachines(deliverycontroller, CriteriaMetList.ToArray(), reset);
             return Ok(result);
         }
 
         // PUT: api/CtxSession/HideSessions
         /// <summary>
         /// This method hides specified sessions.
-        /// The current user, Site Name, Delivery Controllers, Port, and an array of sessions to hide are passed in the body using JSON format.
+        /// The Site Name, Delivery Controllers, Port, and an array of sessions to hide are passed in the body using JSON format.
         /// Each machine must meet the following criteria, which prevents users from hiding sessions unnecessarily.
         /// Registration State must be Unregistered
         /// OR
@@ -709,7 +829,7 @@ namespace SelfServiceSessionReset.Controllers
                     break;
                 }
             }
-            string username = hideinfo.UserName;
+            string username = GetLoggedOnUser();
             string[] machinearray = hideinfo.MachineNames.ToArray();
             string result = string.Empty;
             // Create a new array by verifying that each machine meets the following criteria, which prevents users from hiding sessions unnecessarily. 
