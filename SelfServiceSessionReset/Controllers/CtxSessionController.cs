@@ -1,6 +1,6 @@
-﻿// Version 1.3
+﻿// Version 1.4
 // Written by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th June 2020
-// Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 9th September 2020
+// Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 11th September 2020
 //
 using System;
 using System.Collections.Generic;
@@ -21,7 +21,7 @@ using System.Threading;
 using System.Dynamic;
 // Required for StringBuilder
 using System.Text;
-// required for loading XML documents
+// Required for loading XML documents
 using System.Xml.Linq;
 // Required for both:
 // HttpContext.Current.Server.MapPath
@@ -513,7 +513,7 @@ namespace SelfServiceSessionReset.Controllers
                     }
                     else
                     {
-                        stringBuilder.AppendLine("Successfully restarted " + machinename);
+                        stringBuilder.AppendLine("No output returned when restarting " + machinename + ". Outcome unknown.");
                     }
                     pipeline.Dispose();
                 }
@@ -748,7 +748,7 @@ namespace SelfServiceSessionReset.Controllers
             return Ok(result);
         }
 
-        // PUT: api/CtxSession/RestartMachines
+        // DELETE: api/CtxSession/RestartMachines
         /// <summary>
         /// This method restarts specified machines.
         /// The Site Name, Delivery Controllers, Port, and an array of sessions to restart are passed in the body using JSON format.
@@ -757,7 +757,7 @@ namespace SelfServiceSessionReset.Controllers
         /// <param name="restartinfo"></param>
         /// <returns>Success or failure</returns>
         [Route("RestartMachines")]
-        [HttpPut]
+        [HttpDelete]
         public IHttpActionResult RestartMachinesByMachineName([FromBody]CtxSessionsToAction restartinfo)
         {
             int.TryParse(restartinfo.Port, out int intport);

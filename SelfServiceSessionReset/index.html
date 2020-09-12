@@ -1,8 +1,8 @@
 ﻿<!DOCTYPE html>
 <!--
-Version 1.3
+Version 1.4
 Written by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th June 2020
-Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 9th September 2020
+Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 11th September 2020
 -->
 <html>
 <head>
@@ -1008,7 +1008,7 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 9th September 2020
                 "Reset": reset
             };
             $.ajax({
-                type: "PUT",
+                type: "DELETE",
                 dataType: "json",
                 url: "api/CtxSession/RestartMachines",
                 data: sessionsToLogoff,
