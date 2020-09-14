@@ -623,12 +623,13 @@ namespace SelfServiceSessionReset.Controllers
         /// <summary>
         /// This method returns an array of JSON objects read from the App_DATA\CtxSites.xml file.
         /// Each Site contains 4 elements.
-        /// (1) FriendlyName - a name of the environment that users can relate to.
-        /// (2) Name - the actual name of the Site (This info is not currently used).
-        /// (3) DeliveryControllers - a comma separate list.
-        /// (4) Port – used for an XDPing health check to ensure the actions are performed against a healthy Delivery Controller.
-        /// (5) ExcludeDeliveryGroups – if a machine is part of the Delivery Groups listed under the ExcludeDeliveryGroups, the
-        ///     user is unable to take any action other than contacting the Service Desk.
+        /// (1) FriendlyName - the name in the drop down list that Users will associate with.
+        /// (2) Name - the real Site name.
+        /// (3) DeliveryControllers - a comma separated list of Delivery Controllers for that site.
+        /// (4) Port – the port number the Delivery Controllers listen on. An XDPing is run against them to ensure they are healthy.
+        /// (5) Default - the default value is False. Set this to True if you have multiple Sites but want 1 Site to be the default
+        /// selected when users access the tool. If only 1 Site is added to the XML file, it will automatically default to this Site
+        /// so there is no need to set a value for Default.
         /// </summary>
         /// <returns>List of sites</returns>
         [Route("GetSiteList")]
