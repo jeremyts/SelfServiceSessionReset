@@ -621,7 +621,7 @@ namespace SelfServiceSessionReset.Controllers
 
         // GET: api/CtxSession/GetSiteList
         /// <summary>
-        /// This method returns an array of JSON objects read from the App_DATA\CtxSites.xml file.
+        /// This method returns an array of JSON objects read from the App_Data\CtxSites.xml file.
         /// Each Site contains 4 elements.
         /// (1) FriendlyName - the name in the drop down list that Users will associate with.
         /// (2) Name - the real Site name.
