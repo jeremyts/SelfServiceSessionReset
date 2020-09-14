@@ -1,89 +1,35 @@
 ﻿<?xml version="1.0" encoding="utf-8" ?>
 <!--
-Version 1.1
+Version 1.2
 Written by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th June 2020
-Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 21st August 2020
+Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 9th September 2020
 -->
 <Sites>
 	<Site>
-		<FriendlyName>IOAPPS</FriendlyName>
-		<Name>IOAPPS</Name>
-		<DeliveryControllers>iormdc-cxd01.apac.ent.bhpbilliton.net,iorsmdc-cxd01.apac.ent.bhpbilliton.net</DeliveryControllers>
-		<Port>80</Port>
-		<Default></Default>
-		<IncludeDeliveryGroups>DG-TCE</IncludeDeliveryGroups>
-		<ExcludeDeliveryGroups></ExcludeDeliveryGroups>
-	</Site>
-	<Site>
-		<FriendlyName>BNEAPPS</FriendlyName>
-		<Name>BNEAPPS</Name>
-		<DeliveryControllers>bne0pcxd01.apac.ent.bhpbilliton.net,bne0pcxd02.apac.ent.bhpbilliton.net</DeliveryControllers>
-		<Port>80</Port>
-		<Default></Default>
-		<IncludeDeliveryGroups>DG-TCE</IncludeDeliveryGroups>
-		<ExcludeDeliveryGroups></ExcludeDeliveryGroups>
-	</Site>
-	<Site>
-		<FriendlyName>ODAPPS</FriendlyName>
-		<Name>ODAPPS</Name>
-		<DeliveryControllers>olp1pcxd02.apac.ent.bhpbilliton.net,olp2pcxd02.apac.ent.bhpbilliton.net</DeliveryControllers>
-		<Port>80</Port>
-		<Default></Default>
-		<IncludeDeliveryGroups>DG-TCE</IncludeDeliveryGroups>
-		<ExcludeDeliveryGroups></ExcludeDeliveryGroups>
-	</Site>
-	<Site>
-		<FriendlyName>MINAUSAPPS</FriendlyName>
-		<Name>MINAUSAPPS</Name>
-		<DeliveryControllers>per1pcxd02.apac.ent.bhpbilliton.net,per2pcxd02.apac.ent.bhpbilliton.net</DeliveryControllers>
+		<FriendlyName>Perth Apps</FriendlyName>
+		<Name>PERAPPS</Name>
+		<DeliveryControllers>percxd01.jhouseconsulting.com,percxd02.jhouseconsulting.com</DeliveryControllers>
 		<Port>80</Port>
 		<Default></Default>
 		<IncludeDeliveryGroups></IncludeDeliveryGroups>
 		<ExcludeDeliveryGroups></ExcludeDeliveryGroups>
 	</Site>
 	<Site>
-		<FriendlyName>WAIO TCE</FriendlyName>
-		<Name>IOAPPS</Name>
-		<DeliveryControllers>iormdc-cxd01.apac.ent.bhpbilliton.net,iorsmdc-cxd01.apac.ent.bhpbilliton.net</DeliveryControllers>
+		<FriendlyName>Sydney Apps</FriendlyName>
+		<Name>SYDAPPS</Name>
+		<DeliveryControllers>sydcxd01.jhouseconsulting.com,sydcxd02.jhouseconsulting.com</DeliveryControllers>
 		<Port>80</Port>
 		<Default></Default>
-		<IncludeDeliveryGroups>DG-TCE</IncludeDeliveryGroups>
+		<IncludeDeliveryGroups></IncludeDeliveryGroups>
 		<ExcludeDeliveryGroups></ExcludeDeliveryGroups>
 	</Site>
 	<Site>
-		<FriendlyName>Coal TCE</FriendlyName>
-		<Name>BNEAPPS</Name>
-		<DeliveryControllers>bne0pcxd01.apac.ent.bhpbilliton.net,bne0pcxd02.apac.ent.bhpbilliton.net</DeliveryControllers>
+		<FriendlyName>Melbourne Apps</FriendlyName>
+		<Name>MELAPPS</Name>
+		<DeliveryControllers>melcxd01.jhouseconsulting.com,melcxd02.jhouseconsulting.com</DeliveryControllers>
 		<Port>80</Port>
 		<Default></Default>
-		<IncludeDeliveryGroups>DG-TCE</IncludeDeliveryGroups>
-		<ExcludeDeliveryGroups></ExcludeDeliveryGroups>
-	</Site>
-	<Site>
-		<FriendlyName>OD TCE</FriendlyName>
-		<Name>ODAPPS</Name>
-		<DeliveryControllers>olp1pcxd02.apac.ent.bhpbilliton.net,olp2pcxd02.apac.ent.bhpbilliton.net</DeliveryControllers>
-		<Port>80</Port>
-		<Default></Default>
-		<IncludeDeliveryGroups>DG-TCE</IncludeDeliveryGroups>
-		<ExcludeDeliveryGroups></ExcludeDeliveryGroups>
-	</Site>
-	<Site>
-		<FriendlyName>APU TCE</FriendlyName>
-		<Name>IOAPPS</Name>
-		<DeliveryControllers>iormdc-cxd01.apac.ent.bhpbilliton.net,iorsmdc-cxd01.apac.ent.bhpbilliton.net</DeliveryControllers>
-		<Port>80</Port>
-		<Default></Default>
-		<IncludeDeliveryGroups>DG-TCE</IncludeDeliveryGroups>
-		<ExcludeDeliveryGroups></ExcludeDeliveryGroups>
-	</Site>
-	<Site>
-		<FriendlyName>IOAPPS-TEST</FriendlyName>
-		<Name>IOAPPS-TEST</Name>
-		<DeliveryControllers>iorsdc-cxdt01.apac.ent.bhpbilliton.net</DeliveryControllers>
-		<Port>80</Port>
-		<Default></Default>
-		<IncludeDeliveryGroups>DG-TCE</IncludeDeliveryGroups>
+		<IncludeDeliveryGroups></IncludeDeliveryGroups>
 		<ExcludeDeliveryGroups></ExcludeDeliveryGroups>
 	</Site>
 </Sites>
