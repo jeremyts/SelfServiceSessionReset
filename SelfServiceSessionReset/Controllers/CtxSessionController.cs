@@ -1,6 +1,6 @@
-﻿// Version 1.4
+﻿// Version 1.5
 // Written by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th June 2020
-// Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 11th September 2020
+// Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 24th September 2020
 //
 using System;
 using System.Collections.Generic;
@@ -777,14 +777,16 @@ namespace SelfServiceSessionReset.Controllers
             string username = GetLoggedOnUser();
             string[] machinearray = restartinfo.MachineNames.ToArray();
             string result = string.Empty;
-            // Create a new array by verifying that each machine meets the following criteria. 
+            // Create a new array by verifying that each machine meets the following criteria.
+            // - OSType contains Windows
+            // AND
             // - OSType does not contain 20 for Windows 2008 R2, 2012 R2, 2016, 2019, etc
             // AND
             // - SessionSupport must be SingleSession
             List<string> CriteriaMetList = new List<string>();
             foreach (string machinename in machinearray)
             {
-                CtxSession[] sessionArray = GetCurrentSessions(sitename, deliverycontroller, username).Where<CtxSession>(c => c.MachineName.Contains(machinename) && !c.OSType.Contains("20") && c.SessionSupport == "SingleSession").ToArray<CtxSession>();
+                CtxSession[] sessionArray = GetCurrentSessions(sitename, deliverycontroller, username).Where<CtxSession>(c => c.MachineName.Contains(machinename) && c.OSType.Contains("Windows") && !c.OSType.Contains("20") && c.SessionSupport == "SingleSession").ToArray<CtxSession>();
                 if (sessionArray.Length == 1)
                 {
                     CriteriaMetList.Add(machinename);
