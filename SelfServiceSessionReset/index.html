@@ -1,8 +1,8 @@
 ﻿<!DOCTYPE html>
 <!--
-Version 1.4
+Version 1.5
 Written by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th June 2020
-Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 11th September 2020
+Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 14th October 2020
 -->
 <html>
 <head>
@@ -1000,7 +1000,7 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 11th September 2020
         function restartMachines(sitename, deliverycontrollers, port, sessions, reset) {
             OpenStatusPopup()
             $("#statusmessage").append("<span>" + Get24hourTime() + ": Restarting machines...</br></span>");
-            var sessionsToLogoff = {
+            var machinesToRestart = {
                 "SiteName": sitename,
                 "DeliveryControllers": deliverycontrollers,
                 "Port": port,
@@ -1011,7 +1011,7 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 11th September 2020
                 type: "DELETE",
                 dataType: "json",
                 url: "api/CtxSession/RestartMachines",
-                data: sessionsToLogoff,
+                data: machinesToRestart,
                 success: function (result) {
                     console.info(result);
                     OpenStatusPopup()
@@ -1030,7 +1030,7 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 11th September 2020
         function hideSessions(sitename, deliverycontrollers, port, sessions, hide) {
             OpenStatusPopup()
             $("#statusmessage").append("<span>" + Get24hourTime() + ": Hiding sessions...</br></span>");
-            var sessionsToLogoff = {
+            var sessionsToHide = {
                 "SiteName": sitename,
                 "DeliveryControllers": deliverycontrollers,
                 "Port": port,
@@ -1041,7 +1041,7 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 11th September 2020
                 type: "PUT",
                 dataType: "json",
                 url: "api/CtxSession/HideSessions",
-                data: sessionsToLogoff,
+                data: sessionsToHide,
                 success: function (result) {
                     console.info(result);
                     OpenStatusPopup()

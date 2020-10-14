@@ -214,7 +214,7 @@ namespace SelfServiceSessionReset.Controllers
                                 IdleSince = obj.Properties["IdleSince"].Value.ToString();
                             }
                             RestartSupported = "False";
-                            if (OSType.IndexOf("20", StringComparison.CurrentCultureIgnoreCase) < 0 && SessionSupport == "SingleSession")
+                            if (OSType.IndexOf("Windows", StringComparison.CurrentCultureIgnoreCase) >= 0 && OSType.IndexOf("20", StringComparison.CurrentCultureIgnoreCase) < 0 && SessionSupport == "SingleSession")
                             {
                                 RestartSupported = "True";
                             }
