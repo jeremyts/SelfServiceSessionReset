@@ -486,6 +486,11 @@
             This is the CtxSessionController class.
             </summary>
         </member>
+        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.GetConfigurationSettings">
+            <summary>
+            Get the configuration information from appSettings in the web.config
+            </summary>
+        </member>
         <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.GetLoggedOnUser">
             <summary>
             Get the logged in user identify name which is returned in the format of DOMAIN\\USERNAME
@@ -496,6 +501,15 @@
             <summary>
             Get user properties from Active Directory
             </summary>
+            <returns></returns>
+        </member>
+        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.XDAuth(System.Management.Automation.Runspaces.Runspace,System.String)">
+            <summary>
+            Get the Site XDCredentials settings from the App_Data/CtxSites.xml file,
+            set the Credentials and Authenticate.
+            </summary>
+            <param name="runSpace"></param>
+            <param name="SiteName"></param>
             <returns></returns>
         </member>
         <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.XDPing(System.String,System.Int32)">
@@ -515,10 +529,13 @@
             <param name="UserName"></param>
             <returns></returns>
         </member>
-        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.GetSessionExtraInformation(System.String,System.String)">
+        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.GetSessionExtraInformation(System.Management.Automation.Runspaces.Runspace,System.String,System.String)">
             <summary>
-            Returns an Expando object with the RegistrationState of a machine
+            Returns an Expando object with the RegistrationState of a machine. We do this in the same
+            Runspace to (a) make it more efficient, (b) loading the "Citrix.Broker.Admin.V2" SnapIn
+            once, and (c) leverage the previous XDAuth call.
             </summary>
+            <param name="runSpace"></param>
             <param name="AdminAddress"></param>
             <param name="MachineName"></param>
             <returns></returns>
@@ -539,28 +556,32 @@
             <param name="DeliveryGroup"></param>
             <returns></returns>
         </member>
-        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.LogoffSessions(System.String,System.String,System.String[])">
+        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.LogofforDisconnectSessions(System.String,System.String,System.String,System.String[],System.Boolean)">
             <summary>
-            Logs off all sepecified sessions.
+            Logs off or diconnects all sepecified sessions.
             </summary>
+            <param name="SiteName"></param>
             <param name="AdminAddress"></param>
             <param name="UserName"></param>
             <param name="arrMachineNames"></param>
+            <param name="disconnect"></param>
             <returns></returns>
         </member>
-        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.RestartMachines(System.String,System.String[],System.Boolean)">
+        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.RestartMachines(System.String,System.String,System.String[],System.Boolean)">
             <summary>
             Restarts all sepecified machines.
             </summary>
+            <param name="SiteName"></param>
             <param name="AdminAddress"></param>
             <param name="arrMachineNames"></param>
             <param name="reset"></param>
             <returns></returns>
         </member>
-        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.HideSessions(System.String,System.String,System.String[],System.Boolean)">
+        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.HideSessions(System.String,System.String,System.String,System.String[],System.Boolean)">
             <summary>
             Hides all sepecified sessions.
             </summary>
+            <param name="SiteName"></param>
             <param name="AdminAddress"></param>
             <param name="UserName"></param>
             <param name="arrMachineNames"></param>
@@ -574,6 +595,12 @@
             <param name="usexml"></param>
             <param name="usejson"></param>
             <returns></returns>
+        </member>
+        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.GetAppSettings">
+            <summary>
+            This method returns an array of JSON objects read from the appSettings element of the web.config file.
+            </summary>
+            <returns>List of application settings</returns>
         </member>
         <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.GetSiteList">
             <summary>
@@ -628,9 +655,17 @@
             <param name="logoffinfo"></param>
             <returns>Success or failure</returns>
         </member>
+        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.DisconnectSessionsByMachineName(SelfServiceSessionReset.Models.CtxSessionsToAction)">
+            <summary>
+            This method diconnects specified sessions.
+            The Delivery Controllers, Port, and an array of sessions to disconnect are passed in the body using JSON format.
+            </summary>
+            <param name="disconnectinfo"></param>
+            <returns>Success or failure</returns>
+        </member>
         <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.RestartMachinesByMachineName(SelfServiceSessionReset.Models.CtxSessionsToAction)">
             <summary>
-            This method restarts specified machines.
+            This method restarts specified machines either gracefully or forcefully depending on the information passed.
             The Site Name, Delivery Controllers, Port, and an array of sessions to restart are passed in the body using JSON format.
             Supported on Windows Desktop machines only.
             </summary>
@@ -644,7 +679,7 @@
             Each machine must meet the following criteria, which prevents users from hiding sessions unnecessarily.
             Registration State must be Unregistered
             OR
-            Power State must be Unknown or Off
+            Power State must be Unknown, Off or TurningOff
             OR
             Maintenance Mode must be On.
             </summary>
@@ -720,12 +755,13 @@
             <param name="remotehost"></param>
             <returns></returns>
         </member>
-        <member name="M:SelfServiceSessionReset.Controllers.UserProcessController.TerminateRemoteProcess(System.String,System.Int32)">
+        <member name="M:SelfServiceSessionReset.Controllers.UserProcessController.TerminateRemoteProcess(System.String,System.Int32,System.String)">
             <summary>
             This method terminates the processes.
             </summary>
             <param name="remotehost"></param>
             <param name="processId"></param>
+            <param name="username"></param>
             <returns></returns>
         </member>
         <member name="M:SelfServiceSessionReset.Controllers.UserProcessController.GetRemoteProcessesByUsername(System.String)">

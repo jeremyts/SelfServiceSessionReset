@@ -1,6 +1,6 @@
-﻿// Version 1.5
+﻿// Version 1.6
 // Written by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th June 2020
-// Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 24th September 2020
+// Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 3rd July 2021
 //
 using System;
 using System.Collections.Generic;
@@ -33,15 +33,46 @@ using System.IO;
 using System.DirectoryServices.AccountManagement;
 // Required for sockets XDPing
 using System.Net.Sockets;
+// Required to read appSettings from web.config
+using System.Configuration;
+// Required for using a NameValueCollection
+using System.Collections.Specialized;
 
 namespace SelfServiceSessionReset.Controllers
 {
+
+    internal class ConfigSettings
+    {
+        public string key { get; set; }
+        public string value { get; set; }
+    }
+
     /// <summary>
     /// This is the CtxSessionController class.
     /// </summary>
     [RoutePrefix("api/CtxSession")]
     public class CtxSessionController : ApiController
     {
+
+        /// <summary>
+        /// Get the configuration information from appSettings in the web.config
+        /// </summary>
+        private List<ConfigSettings> GetConfigurationSettings()
+        {
+            List<ConfigSettings> ConfigurationSettings = new List<ConfigSettings> { };
+            NameValueCollection appSettings = ConfigurationManager.AppSettings;
+
+            foreach (string s in appSettings.AllKeys)
+            {
+                ConfigurationSettings.Add(new ConfigSettings
+                {
+                    key = s,
+                    value = appSettings.Get(s)
+                });
+            }
+            return ConfigurationSettings;
+        }
+
         /// <summary>
         /// Get the logged in user identify name which is returned in the format of DOMAIN\\USERNAME
         /// </summary>
@@ -77,7 +108,239 @@ namespace SelfServiceSessionReset.Controllers
                     displayName = up.DisplayName;
                 }
             }
-            return (givenName + " " + surName);
+            //return (givenName + " " + surName);
+            String[] items = displayName.Split(',');
+            if (items.Length == 2){
+                displayName = items[1].Trim() + " " + items[0].Trim();
+            }
+            return (displayName);
+        }
+
+        /// <summary>
+        /// Get the Site XDCredentials settings from the App_Data/CtxSites.xml file,
+        /// set the Credentials and Authenticate.
+        /// </summary>
+        /// <param name="runSpace"></param>
+        /// <param name="SiteName"></param>
+        /// <returns></returns>
+        private bool XDAuth(Runspace runSpace, string SiteName)
+        {
+            bool CitrixRemotePowerShellSDKNotInstalled = false;
+            bool SetCredentialProfile = false;
+            bool GetAuthenticationProfile = false;
+            bool GetCredentialProfile = false;
+
+            StringBuilder stringBuilder = new StringBuilder();
+            stringBuilder.AppendLine("Starting the authentication process...");
+            string ProfileType = string.Empty;
+            string CustomerID = string.Empty;
+            string ClientID = string.Empty;
+            string ClientSecret = string.Empty;
+
+            bool FileFound = false;
+            bool SiteFound = false;
+
+            if (File.Exists(HttpContext.Current.Server.MapPath("~/App_Data/CtxSites.xml")))
+            {
+                FileFound = true;
+                stringBuilder.AppendLine("- Found the CtxSites.xml file");
+                XDocument doc = XDocument.Load(HttpContext.Current.Server.MapPath("~/App_Data/CtxSites.xml"));
+                foreach (XElement element in doc.Descendants("Sites").Descendants("Site"))
+                {
+                    if (element.Element("Name").Value.ToUpper().Equals(SiteName.ToUpper()))
+                    {
+                        SiteFound = true;
+                        stringBuilder.AppendLine("- " + SiteName + " site found");
+                        if (!string.IsNullOrEmpty(element.Element("ProfileType").Value))
+                        {
+                            ProfileType = element.Element("ProfileType").Value;
+                            stringBuilder.AppendLine("- ProfileType: " + ProfileType);
+                        }
+                        else
+                        {
+                            ProfileType = string.Empty;
+                            stringBuilder.AppendLine("- ProfileType element is empty");
+                        }
+
+                        if (!string.IsNullOrEmpty(element.Element("CustomerID").Value))
+                        {
+                            CustomerID = element.Element("CustomerID").Value;
+                            stringBuilder.AppendLine("- CustomerID: " + CustomerID);
+                        }
+                        else
+                        {
+                            CustomerID = string.Empty;
+                            stringBuilder.AppendLine("- CustomerID element is empty");
+                        }
+
+                        if (!string.IsNullOrEmpty(element.Element("ClientID").Value))
+                        {
+                            ClientID = element.Element("ClientID").Value;
+                            stringBuilder.AppendLine("- ClientID: " + ClientID);
+                        }
+                        else
+                        {
+                            ClientID = string.Empty;
+                            stringBuilder.AppendLine("- ClientID element is empty");
+                        }
+
+                        if (!string.IsNullOrEmpty(element.Element("ClientSecret").Value))
+                        {
+                            ClientSecret = element.Element("ClientSecret").Value;
+                            stringBuilder.AppendLine("- ClientSecret: " + ClientSecret);
+                        }
+                        else
+                        {
+                            ClientSecret = string.Empty;
+                            stringBuilder.AppendLine("- ClientSecret element is empty");
+                        }
+                    }
+                }
+                if (!SiteFound)
+                {
+                    stringBuilder.AppendLine("- ERROR: The " + SiteName + " site not found");
+                }
+            }
+            else
+            {
+                stringBuilder.AppendLine("- ERROR: The CtxSites.xml file not found");
+            }
+            if (FileFound && SiteFound)
+            {
+                // Pipeline1 Set the Credential Profile
+                Pipeline pipeline1 = runSpace.CreatePipeline();
+                Command setCreds = new Command("Set-XDCredentials");
+                if (ProfileType.ToUpper().Equals("CLOUDAPI"))
+                {
+                    setCreds.Parameters.Add("APIKey", ClientID);
+                    setCreds.Parameters.Add("SecretKey", ClientSecret);
+                    setCreds.Parameters.Add("CustomerId", CustomerID);
+                }
+                setCreds.Parameters.Add("StoreAs", SiteName);
+                setCreds.Parameters.Add("ProfileType", ProfileType);
+                pipeline1.Commands.Add(setCreds);
+
+                // Pipeline2 Get Authentication Profile
+                Pipeline pipeline2 = runSpace.CreatePipeline();
+                Command getAuth = new Command("Get-XDAuthentication");
+                getAuth.Parameters.Add("ProfileName", SiteName);
+                pipeline2.Commands.Add(getAuth);
+
+                // Pipeline3 Get the Credential Profile
+                Pipeline pipeline3 = runSpace.CreatePipeline();
+                Command getCreds = new Command("Get-XDCredentials");
+                getCreds.Parameters.Add("ProfileName", SiteName);
+                pipeline3.Commands.Add(getCreds);
+
+                stringBuilder.AppendLine("- Setting Credentials...");
+                try
+                {
+                    Collection<PSObject> commandResults = pipeline1.Invoke();
+                    bool IsCollectionNullOrEmpty = !(commandResults?.Any() ?? false);
+                    if (IsCollectionNullOrEmpty == false)
+                    {
+                        foreach (PSObject obj in commandResults)
+                        {
+                            if (!(obj is null))
+                            {
+                                stringBuilder.AppendLine(obj.ToString());
+                            }
+                            else
+                            {
+                                stringBuilder.AppendLine("- Failed to set credential profile");
+                            }
+                        };
+                    }
+                    else
+                    {
+                        SetCredentialProfile = true;
+                        stringBuilder.AppendLine("- Successfully set credential profile");
+                    }
+                }
+                catch (Exception e)
+                {
+                    stringBuilder.AppendLine("- ERROR: " + e.Message);
+                    CitrixRemotePowerShellSDKNotInstalled = e.Message.IndexOf("The term 'Set-XDCredentials' is not recognized as the name of a cmdlet, function, script file, or operable program", StringComparison.OrdinalIgnoreCase) == 0;
+                }
+                pipeline1.Dispose();
+                if (SetCredentialProfile)
+                {
+                    stringBuilder.AppendLine("- Getting Authentication...");
+                    try
+                    {
+                        Collection<PSObject> commandResults = pipeline2.Invoke();
+                        bool IsCollectionNullOrEmpty = !(commandResults?.Any() ?? false);
+                        if (IsCollectionNullOrEmpty == false)
+                        {
+                            foreach (PSObject obj in commandResults)
+                            {
+                                if (!(obj is null))
+                                {
+                                    stringBuilder.AppendLine(obj.ToString());
+                                }
+                                else
+                                {
+                                    stringBuilder.AppendLine("- Failed to get authentication profile");
+                                }
+                            };
+                        }
+                        else
+                        {
+                            GetAuthenticationProfile = true;
+                            stringBuilder.AppendLine("- Successfully retrieved authentication profile");
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        stringBuilder.AppendLine("- ERROR: " + e.Message);
+                    }
+                }
+                pipeline2.Dispose();
+                if (GetAuthenticationProfile)
+                {
+                    stringBuilder.AppendLine("- Getting Credentials...");
+                    try
+                    {
+                        Collection<PSObject> commandResults = pipeline3.Invoke();
+                        bool IsCollectionNullOrEmpty = !(commandResults?.Any() ?? false);
+                        if (IsCollectionNullOrEmpty == false)
+                        {
+                            foreach (PSObject obj in commandResults)
+                            {
+                                if (!(obj is null))
+                                {
+                                    GetCredentialProfile = true;
+                                    stringBuilder.AppendLine("- Successfully retrieved credential profile");
+                                    stringBuilder.AppendLine("- ProfileName: " + obj.Properties["ProfileName"].Value.ToString());
+                                    stringBuilder.AppendLine("- ProfileType: " + obj.Properties["ProfileType"].Value.ToString());
+                                }
+                                else
+                                {
+                                    stringBuilder.AppendLine("- Failed to get credential profile");
+                                }
+                            };
+                        }
+                        else
+                        {
+                            stringBuilder.AppendLine("- Failed to get credential profile");
+                        }
+                     }
+                    catch (Exception e)
+                    {
+                        stringBuilder.AppendLine("- ERROR: " + e.Message);
+                    }
+                }
+                pipeline3.Dispose();
+                if (GetCredentialProfile)
+                {
+                    stringBuilder.AppendLine("- Successfully completed authentication");
+                }
+                if (CitrixRemotePowerShellSDKNotInstalled)
+                {
+                    stringBuilder.AppendLine("- The Citrix Remote PowerShell SDK Is not installed");
+                }
+            }
+            return GetCredentialProfile;
         }
 
         /// <summary>
@@ -140,16 +403,19 @@ namespace SelfServiceSessionReset.Controllers
             ps.Runspace = runSpace;
             PSSnapInException psex;
             runSpace.RunspaceConfiguration.AddPSSnapIn("Citrix.Broker.Admin.V2", out psex);
+            // Call the XDAuth method in the same Runspace.
+            XDAuth(runSpace, SiteName);
+
             Pipeline pipeline = runSpace.CreatePipeline();
             Command getSession = new Command("Get-BrokerSession");
             getSession.Parameters.Add("AdminAddress", AdminAddress);
             getSession.Parameters.Add("MaxRecordCount", 99999);
             getSession.Parameters.Add("UserName", UserName);
             pipeline.Commands.Add(getSession);
+
             try
             {
                 Collection<PSObject> Output = pipeline.Invoke();
-                runSpace.Close();
 
                 // Check if the collection is null or empty
                 bool IsCollectionNullOrEmpty = !(Output?.Any() ?? false);
@@ -224,8 +490,10 @@ namespace SelfServiceSessionReset.Controllers
                             // Include or Exclude specific delivery groups
                             Include = IncludeDeliveryGroup(SiteName, obj.Properties["DesktopGroupName"].Value.ToString());
 
-                            // Retrieve an object of extra information of the session, such as RegistrationState of the machine.
-                            dynamic extraSessionInfo = GetSessionExtraInformation(AdminAddress, MachineName);
+                            // Retrieve an object of extra information of the session, such as RegistrationState, MaintenanceMode and PowerState of the machine.
+                            // Note that MaintenanceMode and PowerState can be supplied from either Get-BrokerSession or Get-BrokerMachine. However, I made the
+                            // decission to use Get-BrokerMachine as they are "machine" related.
+                            dynamic extraSessionInfo = GetSessionExtraInformation(runSpace, AdminAddress, MachineName);
 
                             sessions.Add(new CtxSession
                             {
@@ -244,7 +512,7 @@ namespace SelfServiceSessionReset.Controllers
                                 IdleSince = IdleSince,
                                 RestartSupported = RestartSupported,
                                 Hidden = Hidden,
-                                PowerState = PowerState,
+                                PowerState = extraSessionInfo.PowerState,
                                 RegistrationState = extraSessionInfo.RegistrationState,
                                 MaintenanceMode = extraSessionInfo.MaintenanceMode,
                                 Include = Include
@@ -255,31 +523,34 @@ namespace SelfServiceSessionReset.Controllers
             }
             catch (Exception e)
             {
-                stringBuilder.AppendLine("ERROR: " + e.Message);
+                // These are errors caused by the Citrix Remote PowerShell SDK if the project is not built with the Platform target set to x64 instead of Any CPU.
+                // - Citrix.Broker.Admin.SDK.SdkOperationException: Invalid admin server version '0' () - should be '2' (7.30.0.0)
+                // - Citrix.Broker.Admin.SDK.AdminConnectionException: Invalid admin server version '0' () - should be '2' (7.30.0.0)
+                stringBuilder.AppendLine("ERROR: " + e.InnerException + " - " + e.Message + " - " + e.Source + " - " + e.StackTrace + " - " + e.TargetSite + " - " + e.Data);
             }
+            pipeline.Dispose();
+            runSpace.Close();
             return sessions;
         }
 
         /// <summary>
-        /// Returns an Expando object with the RegistrationState of a machine
+        /// Returns an Expando object with the RegistrationState of a machine. We do this in the same
+        /// Runspace to (a) make it more efficient, (b) loading the "Citrix.Broker.Admin.V2" SnapIn
+        /// once, and (c) leverage the previous XDAuth call.
         /// </summary>
+        /// <param name="runSpace"></param>
         /// <param name="AdminAddress"></param>
         /// <param name="MachineName"></param>
         /// <returns></returns>
-        private ExpandoObject GetSessionExtraInformation(string AdminAddress, string MachineName)
+        private ExpandoObject GetSessionExtraInformation(Runspace runSpace, string AdminAddress, string MachineName)
         {
             StringBuilder stringBuilder = new StringBuilder();
             // Create a dynamic object to store some properties
             dynamic response = new ExpandoObject();
             response.RegistrationState = string.Empty;
             response.MaintenanceMode = string.Empty;
+            response.PowerState = string.Empty;
 
-            Runspace runSpace = RunspaceFactory.CreateRunspace();
-            runSpace.Open();
-            PowerShell ps = PowerShell.Create();
-            ps.Runspace = runSpace;
-            PSSnapInException psex;
-            runSpace.RunspaceConfiguration.AddPSSnapIn("Citrix.Broker.Admin.V2", out psex);
             Pipeline pipeline = runSpace.CreatePipeline();
             Command getMachine = new Command("Get-BrokerMachine");
             getMachine.Parameters.Add("AdminAddress", AdminAddress);
@@ -288,7 +559,6 @@ namespace SelfServiceSessionReset.Controllers
             try
             {
                 Collection<PSObject> Output = pipeline.Invoke();
-                runSpace.Close();
 
                 // Check if the collection is null or empty
                 bool IsCollectionNullOrEmpty = !(Output?.Any() ?? false);
@@ -309,6 +579,7 @@ namespace SelfServiceSessionReset.Controllers
                             {
                                 response.MaintenanceMode = "On";
                             }
+                            response.PowerState = obj.Properties["PowerState"].Value.ToString();
                         }
                     };
                 }
@@ -317,6 +588,7 @@ namespace SelfServiceSessionReset.Controllers
             {
                 stringBuilder.AppendLine("ERROR: " + e.Message);
             }
+            pipeline.Dispose();
             return response;
         }
 
@@ -398,32 +670,45 @@ namespace SelfServiceSessionReset.Controllers
         }
 
         /// <summary>
-        /// Logs off all sepecified sessions.
+        /// Logs off or diconnects all sepecified sessions.
         /// </summary>
+        /// <param name="SiteName"></param>
         /// <param name="AdminAddress"></param>
         /// <param name="UserName"></param>
         /// <param name="arrMachineNames"></param>
+        /// <param name="disconnect"></param>
         /// <returns></returns>
-        private string LogoffSessions(string AdminAddress, string UserName, string[] arrMachineNames)
+        private string LogofforDisconnectSessions(string SiteName, string AdminAddress, string UserName, string[] arrMachineNames, bool disconnect)
         {
+            StringBuilder stringBuilder = new StringBuilder();
             Runspace runSpace = RunspaceFactory.CreateRunspace();
             runSpace.Open();
             PowerShell ps = PowerShell.Create();
             ps.Runspace = runSpace;
             PSSnapInException psex;
             runSpace.RunspaceConfiguration.AddPSSnapIn("Citrix.Broker.Admin.V2", out psex);
-            StringBuilder stringBuilder = new StringBuilder();
+            // Call the XDAuth method in the same Runspace.
+            XDAuth(runSpace, SiteName);
             foreach (string machinename in arrMachineNames)
             {
-                stringBuilder.AppendLine("Logging off " + machinename);
                 Pipeline pipeline = runSpace.CreatePipeline();
                 Command getSession = new Command("Get-BrokerSession");
                 getSession.Parameters.Add("AdminAddress", AdminAddress);
                 getSession.Parameters.Add("MachineName", "*\\" + machinename);
                 getSession.Parameters.Add("UserName", UserName);
                 pipeline.Commands.Add(getSession);
-                Command stopSession = new Command("Stop-BrokerSession");
-                pipeline.Commands.Add(stopSession);
+                if (disconnect == false)
+                {
+                    stringBuilder.AppendLine("Logging off " + machinename);
+                    Command stopSession = new Command("Stop-BrokerSession");
+                    pipeline.Commands.Add(stopSession);
+                }
+                else
+                {
+                    stringBuilder.AppendLine("Disconnecting " + machinename);
+                    Command disconnectSession = new Command("Disconnect-BrokerSession");
+                    pipeline.Commands.Add(disconnectSession);
+                }
                 try
                 {
                     Collection<PSObject> commandResults = pipeline.Invoke();
@@ -438,43 +723,60 @@ namespace SelfServiceSessionReset.Controllers
                             }
                             else
                             {
-                                stringBuilder.AppendLine("Failed to log off " + machinename);
+                                if (disconnect == false)
+                                {
+                                    stringBuilder.AppendLine("Failed to log off " + machinename);
+                                }
+                                else
+                                {
+                                    stringBuilder.AppendLine("Failed to disconnect " + machinename);
+                                }
                             }
                         };
                     }
                     else
                     {
-                        stringBuilder.AppendLine("Successfully logged off " + machinename);
+                        if (disconnect == false)
+                        {
+                            stringBuilder.AppendLine("Successfully logged off " + machinename);
+                        }
+                        else
+                        {
+                            stringBuilder.AppendLine("Successfully disconnected " + machinename);
+                        }
                     }
-                    pipeline.Dispose();
                 }
                 catch (Exception e)
                 {
                     stringBuilder.AppendLine("ERROR: " + e.Message);
                 }
+                pipeline.Dispose();
             }
             runSpace.Close();
-            // Unfortunately the Stop-BrokerSession cmdlet doesn't return anything
-            // So we do our best to return meaninful data.
+            // Unfortunately the Stop-BrokerSession and Disconnect-BrokerSession cmdlets do not return anything
+            // so we do our best to return meaninful data.
             return stringBuilder.ToString();
         }
 
         /// <summary>
         /// Restarts all sepecified machines.
         /// </summary>
+        /// <param name="SiteName"></param>
         /// <param name="AdminAddress"></param>
         /// <param name="arrMachineNames"></param>
         /// <param name="reset"></param>
         /// <returns></returns>
-        private string RestartMachines(string AdminAddress, string[] arrMachineNames, bool reset)
+        private string RestartMachines(string SiteName, string AdminAddress, string[] arrMachineNames, bool reset)
         {
+            StringBuilder stringBuilder = new StringBuilder();
             Runspace runSpace = RunspaceFactory.CreateRunspace();
             runSpace.Open();
             PowerShell ps = PowerShell.Create();
             ps.Runspace = runSpace;
             PSSnapInException psex;
             runSpace.RunspaceConfiguration.AddPSSnapIn("Citrix.Broker.Admin.V2", out psex);
-            StringBuilder stringBuilder = new StringBuilder();
+            // Call the XDAuth method in the same Runspace.
+            XDAuth(runSpace, SiteName);
             foreach (string machinename in arrMachineNames)
             {
                 stringBuilder.AppendLine("Restarting " + machinename);
@@ -515,12 +817,12 @@ namespace SelfServiceSessionReset.Controllers
                     {
                         stringBuilder.AppendLine("No output returned when restarting " + machinename + ". Outcome unknown.");
                     }
-                    pipeline.Dispose();
                 }
                 catch (Exception e)
                 {
                     stringBuilder.AppendLine("ERROR: " + e.Message);
                 }
+                pipeline.Dispose();
             }
             runSpace.Close();
             return stringBuilder.ToString();
@@ -529,20 +831,23 @@ namespace SelfServiceSessionReset.Controllers
         /// <summary>
         /// Hides all sepecified sessions.
         /// </summary>
+        /// <param name="SiteName"></param>
         /// <param name="AdminAddress"></param>
         /// <param name="UserName"></param>
         /// <param name="arrMachineNames"></param>
         /// <param name="hide"></param>
         /// <returns></returns>
-        private string HideSessions(string AdminAddress, string UserName, string[] arrMachineNames, bool hide)
+        private string HideSessions(string SiteName, string AdminAddress, string UserName, string[] arrMachineNames, bool hide)
         {
+            StringBuilder stringBuilder = new StringBuilder();
             Runspace runSpace = RunspaceFactory.CreateRunspace();
             runSpace.Open();
             PowerShell ps = PowerShell.Create();
             ps.Runspace = runSpace;
             PSSnapInException psex;
             runSpace.RunspaceConfiguration.AddPSSnapIn("Citrix.Broker.Admin.V2", out psex);
-            StringBuilder stringBuilder = new StringBuilder();
+            // Call the XDAuth method in the same Runspace.
+            XDAuth(runSpace, SiteName);
             foreach (string machinename in arrMachineNames)
             {
                 stringBuilder.AppendLine("Hiding session on " + machinename);
@@ -577,12 +882,12 @@ namespace SelfServiceSessionReset.Controllers
                     {
                         stringBuilder.AppendLine("Successfully hidden session on " + machinename);
                     }
-                    pipeline.Dispose();
                 }
                 catch (Exception e)
                 {
                     stringBuilder.AppendLine("ERROR: " + e.Message + Environment.NewLine);
                 }
+                pipeline.Dispose();
             }
             runSpace.Close();
             // Unfortunately the Set-BrokerSession cmdlet doesn't return anything
@@ -617,6 +922,18 @@ namespace SelfServiceSessionReset.Controllers
                 }
             }
             return sites;
+        }
+
+        // GET: api/CtxSession/GetAppSettings
+        /// <summary>
+        /// This method returns an array of JSON objects read from the appSettings element of the web.config file.
+        /// </summary>
+        /// <returns>List of application settings</returns>
+        [Route("GetAppSettings")]
+        [HttpGet]
+        public IHttpActionResult GetAppSettings()
+        {
+            return Ok(GetConfigurationSettings());
         }
 
         // GET: api/CtxSession/GetSiteList
@@ -732,7 +1049,9 @@ namespace SelfServiceSessionReset.Controllers
         [HttpDelete]
         public IHttpActionResult LogoffSessionsByMachineName([FromBody]CtxSessionsToAction logoffinfo)
         {
+            bool disconnect = false;
             int.TryParse(logoffinfo.Port, out int intport);
+            string sitename = logoffinfo.SiteName;
             string deliverycontroller = string.Empty;
             string[] strArray = logoffinfo.DeliveryControllers.Split(',');
             foreach (string strItem in strArray)
@@ -745,13 +1064,43 @@ namespace SelfServiceSessionReset.Controllers
             }
             string username = GetLoggedOnUser();
             string[] machinearray = logoffinfo.MachineNames.ToArray();
-            string result = LogoffSessions(deliverycontroller, username, machinearray);
+            string result = LogofforDisconnectSessions(sitename, deliverycontroller, username, machinearray, disconnect);
+            return Ok(result);
+        }
+
+        // PUT: api/CtxSession/DisconnectSessions
+        /// <summary>
+        /// This method diconnects specified sessions.
+        /// The Delivery Controllers, Port, and an array of sessions to disconnect are passed in the body using JSON format.
+        /// </summary>
+        /// <param name="disconnectinfo"></param>
+        /// <returns>Success or failure</returns>
+        [Route("DisconnectSessions")]
+        [HttpPut]
+        public IHttpActionResult DisconnectSessionsByMachineName([FromBody]CtxSessionsToAction disconnectinfo)
+        {
+            bool disconnect = true;
+            int.TryParse(disconnectinfo.Port, out int intport);
+            string sitename = disconnectinfo.SiteName;
+            string deliverycontroller = string.Empty;
+            string[] strArray = disconnectinfo.DeliveryControllers.Split(',');
+            foreach (string strItem in strArray)
+            {
+                deliverycontroller = strItem;
+                if (XDPing(deliverycontroller, intport))
+                {
+                    break;
+                }
+            }
+            string username = GetLoggedOnUser();
+            string[] machinearray = disconnectinfo.MachineNames.ToArray();
+            string result = LogofforDisconnectSessions(sitename, deliverycontroller, username, machinearray, disconnect);
             return Ok(result);
         }
 
         // DELETE: api/CtxSession/RestartMachines
         /// <summary>
-        /// This method restarts specified machines.
+        /// This method restarts specified machines either gracefully or forcefully depending on the information passed.
         /// The Site Name, Delivery Controllers, Port, and an array of sessions to restart are passed in the body using JSON format.
         /// Supported on Windows Desktop machines only.
         /// </summary>
@@ -798,7 +1147,7 @@ namespace SelfServiceSessionReset.Controllers
                     result += machinename + " does not meet the criteria to be restarted" + Environment.NewLine;
                 }
             }
-            result += RestartMachines(deliverycontroller, CriteriaMetList.ToArray(), reset);
+            result += RestartMachines(sitename, deliverycontroller, CriteriaMetList.ToArray(), reset);
             return Ok(result);
         }
 
@@ -809,7 +1158,7 @@ namespace SelfServiceSessionReset.Controllers
         /// Each machine must meet the following criteria, which prevents users from hiding sessions unnecessarily.
         /// Registration State must be Unregistered
         /// OR
-        /// Power State must be Unknown or Off
+        /// Power State must be Unknown, Off or TurningOff
         /// OR
         /// Maintenance Mode must be On.
         /// </summary>
@@ -838,13 +1187,13 @@ namespace SelfServiceSessionReset.Controllers
             // Create a new array by verifying that each machine meets the following criteria, which prevents users from hiding sessions unnecessarily. 
             // - RegistrationState must be Unregistered
             // OR
-            // - PowerState must be Unknown or Off
+            // - PowerState must be Unknown, Off or TurningOff
             // OR
             // - MaintenanceMode must be On
             List<string> CriteriaMetList = new List<string>();
             foreach (string machinename in machinearray)
             {
-                CtxSession[] sessionArray = GetCurrentSessions(sitename, deliverycontroller, username).Where<CtxSession>(c => c.MachineName.Contains(machinename) && (c.RegistrationState == "Unregistered" || c.PowerState == "Unknown" || c.PowerState == "Off" || c.MaintenanceMode == "On")).ToArray<CtxSession>();
+                CtxSession[] sessionArray = GetCurrentSessions(sitename, deliverycontroller, username).Where<CtxSession>(c => c.MachineName.Contains(machinename) && (c.RegistrationState == "Unregistered" || c.PowerState == "Unknown" || c.PowerState == "Off" || c.PowerState == "TurningOff" || c.MaintenanceMode == "On")).ToArray<CtxSession>();
                 if (sessionArray.Length == 1)
                 {
                     CriteriaMetList.Add(machinename);
@@ -856,7 +1205,7 @@ namespace SelfServiceSessionReset.Controllers
                     result += machinename + " does not meet the criteria to be hidden" + Environment.NewLine;
                 }
             }
-            result += HideSessions(deliverycontroller, username, CriteriaMetList.ToArray(), hide);
+            result += HideSessions(sitename, deliverycontroller, username, CriteriaMetList.ToArray(), hide);
             return Ok(result);
         }
 

@@ -1,6 +1,6 @@
-﻿// Version 1.1
+﻿// Version 1.2
 // Written by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th June 2020
-// Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 9th September 2020
+// Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 3rd July 2021
 //
 using System;
 using System.Collections.Generic;
@@ -334,8 +334,9 @@ namespace SelfServiceSessionReset.Controllers
         /// </summary>
         /// <param name="remotehost"></param>
         /// <param name="processId"></param>
+        /// <param name="username"></param>
         /// <returns></returns>
-        private string TerminateRemoteProcess(string remotehost, int processId)
+        private string TerminateRemoteProcess(string remotehost, int processId, string username)
         {
             string result = "Process ID " + processId + " not found";
             try
@@ -352,41 +353,62 @@ namespace SelfServiceSessionReset.Controllers
                 ManagementObjectCollection processList = searcher.Get();
                 foreach (ManagementObject proc in processList)
                 {
-                    // Get an input parameters object for this method
-                    var inParams = proc.GetMethodParameters("Terminate");
-
-                    // Fill in input parameter values
-                    inParams["Reason"] = 0;
-
-                    // Execute the method
-
-                    var outParams = proc.InvokeMethod("Terminate", inParams, null);
-
-                    // Detect success or failure based on return value
-                    int.TryParse(outParams["ReturnValue"].ToString(), out int returnvalue);
-                    switch (returnvalue)
+                    string procOwner = "None";
+                    string[] Args = new string[] { "", "" };
+                    int ReturnCode = Convert.ToInt32(proc.InvokeMethod("GetOwner", Args));
+                    switch (ReturnCode)
                     {
                         case 0:
-                            result = "Successful completion";
+                            procOwner = Args[1] + "\\" + Args[0];
                             break;
-                        case 2:
-                            result = "Access denied";
-                            break;
-                        case 3:
-                            result = "Insufficient privilege";
-                            break;
-                        case 8:
-                            result = "Unknown failure";
-                            break;
-                        case 9:
-                            result = "Path not found";
-                            break;
-                        case 21:
-                            result = "Invalid parameter";
-                            break;
+
                         default:
-                            result = "Terminate failed with error code " + outParams["ReturnValue"].ToString();
+                            procOwner = "None";
                             break;
+
+                    }
+                    if (procOwner.ToUpper() == username.ToUpper())
+                    {
+                        // Get an input parameters object for this method
+                        var inParams = proc.GetMethodParameters("Terminate");
+
+                        // Fill in input parameter values
+                        inParams["Reason"] = 0;
+
+                        // Execute the method
+
+                        var outParams = proc.InvokeMethod("Terminate", inParams, null);
+
+                        // Detect success or failure based on return value
+                        int.TryParse(outParams["ReturnValue"].ToString(), out int returnvalue);
+                        switch (returnvalue)
+                        {
+                            case 0:
+                                result = "Successful completion";
+                                break;
+                            case 2:
+                                result = "Access denied";
+                                break;
+                            case 3:
+                                result = "Insufficient privilege";
+                                break;
+                            case 8:
+                                result = "Unknown failure";
+                                break;
+                            case 9:
+                                result = "Path not found";
+                                break;
+                            case 21:
+                                result = "Invalid parameter";
+                                break;
+                            default:
+                                result = "Terminate failed with error code " + outParams["ReturnValue"].ToString();
+                                break;
+                        }
+                    }
+                    else
+                    {
+                        result = "Cannot terminate this process because " + username + " is not the process owner";
                     }
                 }
                 manScope = null;
@@ -426,11 +448,12 @@ namespace SelfServiceSessionReset.Controllers
         public IHttpActionResult TerminateRemoteProcessByID([FromBody]TerminateProcess terminateprocess)
         {
             StringBuilder stringBuilder = new StringBuilder();
+            string username = GetLoggedOnUser();
             string remotehost = terminateprocess.RemoteHost;
             foreach (string pid in terminateprocess.PID)
             {
                 int.TryParse(pid, out int intpid);
-                string result = TerminateRemoteProcess(remotehost, intpid);
+                string result = TerminateRemoteProcess(remotehost, intpid, username);
                 stringBuilder.AppendLine("PID " + pid + " termination result:" + result);
             }
             return Ok(stringBuilder.ToString());
