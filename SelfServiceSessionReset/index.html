@@ -1,8 +1,8 @@
 ﻿<!DOCTYPE html>
 <!--
-Version 1.6
+Version 1.7
 Written by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th June 2020
-Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 4th July 2021
+Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 5th July 2021
 -->
 <html>
 <head>
@@ -1031,7 +1031,11 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 4th July 2021
             }
             if (EnableForcedMachineRestart) {
                 newinstructions = newinstructions + `
-                    <p>${i = i + 1}) Force the restart of the machine if a standard restart does not work.</p>`
+                    <p>${i = i + 1}) Force the restart of the machine if a standard restart does not work.</p>
+                    <p>
+                        &nbsp;&nbsp;&nbsp;&nbsp;It is important to note that force restarting a machine may leave applications open on your screen that you cannot interact with. These will disappear<br/>
+                        &nbsp;&nbsp;&nbsp;&nbsp;after 3 minutes by design. Citrix Workspace App (Receiver) may take a further 2 minutes to close out the attempt to auto reconnect to that session.<br/>
+                    </p >`
             }
             if (EnableHideStuckSessions) {
                 newinstructions = newinstructions + `
@@ -1045,7 +1049,7 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 4th July 2021
                         &nbsp;&nbsp;&nbsp;&nbsp;may not release any checked out licenses or locked files you may still have open in that session. Once the session is hidden, it is unable to be unhidden.
                     </p>`
             }
-            newinstructions = newinstructions + `<p>${i = i + 1}) Contact the Service Desk if the above actions do not work, or you are unsure. This tool may not address every scenario.</p>`
+            newinstructions = newinstructions + `<p>${i = i + 1}) Contact the Service Desk if the above actions do not work, or you are unsure how to proceed. This tool may not address every scenario.</p>`
             if (EnableGetTerminateProcesses) {
                 newinstructions = newinstructions + `
                      <p>

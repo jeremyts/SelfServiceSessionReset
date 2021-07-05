@@ -3,8 +3,33 @@
 Version 1.3
 Written by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th June 2020
 Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 3rd July 2021
+
+If data in any of the elements, such as the ClientSecret tag, uses specical characters, it will
+generate an exception when the XML file is read as it's considered invalid. For example, the '&'
+character is invalid and using it as is will generate an exception. Instead, we need to replace
+it with its escaped equivalent. The following table lists the characters that need to be escaped.
+
+Invalid character	Replace with
+	<					&lt;
+	>					&gt;
+	"					&quot;
+	'					&apos;
+	&					&amp;
 -->
 <Sites>
+	<Site>
+		<FriendlyName>APAC Apps</FriendlyName>
+		<Name>APACApps</Name>
+		<DeliveryControllers>apaccxc01.jhouseconsulting.com,apaccxc02.jhouseconsulting.com</DeliveryControllers>
+		<Port>80</Port>
+		<Default></Default>
+		<IncludeDeliveryGroups></IncludeDeliveryGroups>
+		<ExcludeDeliveryGroups></ExcludeDeliveryGroups>
+		<ProfileType>CloudAPI</ProfileType>
+		<CustomerID>yjo8kzgqrkis</CustomerID>
+		<ClientID>10134a3b-2550-5482-872b-397689e376c6</ClientID>
+		<ClientSecret>15dvxDybcnwFPcPJ2WmNFw++</ClientSecret>
+	</Site>
 	<Site>
 		<FriendlyName>Perth Apps</FriendlyName>
 		<Name>PERAPPS</Name>
