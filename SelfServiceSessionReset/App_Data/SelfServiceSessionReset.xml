@@ -607,7 +607,7 @@
             This method returns an array of JSON objects read from the App_Data\CtxSites.xml file.
             Each Site contains 4 elements.
             (1) FriendlyName - the name in the drop down list that Users will associate with.
-            (2) Name - the real Site name.
+            (2) Name - the real Site name, or just a short name used to identify the site.
             (3) DeliveryControllers - a comma separated list of Delivery Controllers for that site.
             (4) Port – the port number the Delivery Controllers listen on. An XDPing is run against them to ensure they are healthy.
             (5) Default - the default value is False. Set this to True if you have multiple Sites but want 1 Site to be the default
@@ -666,7 +666,9 @@
         <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.RestartMachinesByMachineName(SelfServiceSessionReset.Models.CtxSessionsToAction)">
             <summary>
             This method restarts specified machines either gracefully or forcefully depending on the information passed.
-            The Site Name, Delivery Controllers, Port, and an array of sessions to restart are passed in the body using JSON format.
+            The Site Name, Delivery Controllers, Port, an array of sessions to restart, and the reset variable are passed in the body using JSON format.
+            If the reset value is False, the machines are gracefully restarted.
+            If the reset value is True, the machines are forcefully restarted.
             Supported on Windows Desktop machines only.
             </summary>
             <param name="restartinfo"></param>
