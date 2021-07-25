@@ -1,6 +1,0 @@
-2021-07-25 20:35:20.916 +08:00 [INF] Getting sessions for APAC\saunja from the IOAPPS Site using the iormdc-cxd01.apac.ent.bhpbilliton.net Delivery Controller.
-2021-07-25 20:35:30.019 +08:00 [INF] Disconnecting session from PER0PVDI225 for APAC\saunja from the IOAPPS Site using the iormdc-cxd01.apac.ent.bhpbilliton.net Delivery Controller.
-2021-07-25 20:35:38.686 +08:00 [INF] Getting sessions for APAC\saunja from the IOAPPS Site using the iormdc-cxd01.apac.ent.bhpbilliton.net Delivery Controller.
-2021-07-25 20:35:46.226 +08:00 [INF] Logging off the session from PER0PVDI225 for APAC\saunja from the IOAPPS Site using the iormdc-cxd01.apac.ent.bhpbilliton.net Delivery Controller.
-2021-07-25 20:37:15.055 +08:00 [INF] Getting sessions for APAC\saunja from the IOAPPS Site using the iormdc-cxd01.apac.ent.bhpbilliton.net Delivery Controller.
-2021-07-25 20:37:24.356 +08:00 [INF] Logging off the sessions from PER0PSHO14,PER0PVDI140 for APAC\saunja from the IOAPPS Site using the iormdc-cxd01.apac.ent.bhpbilliton.net Delivery Controller.
