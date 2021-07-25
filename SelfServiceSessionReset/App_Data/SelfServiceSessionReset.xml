@@ -486,9 +486,14 @@
             This is the CtxSessionController class.
             </summary>
         </member>
+        <member name="T:SelfServiceSessionReset.Controllers.CtxSessionController.ConfigSettings">
+            <summary>
+            A private class for the key value pair used by the GetConfigurationSettings method
+            </summary>
+        </member>
         <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.GetConfigurationSettings">
             <summary>
-            Get the configuration information from appSettings in the web.config
+            Get the configuration information from appSettings in the Web.config, skipping the serilog settings
             </summary>
         </member>
         <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.GetLoggedOnUser">
@@ -514,7 +519,7 @@
         </member>
         <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.XDPing(System.String,System.Int32)">
             <summary>
-            Performs an XDPing to make sure the Delivery Controller is in a healthy state
+            Performs an XDPing to make sure the Delivery Controller or Cloud Connector is in a healthy state
             </summary>
             <param name="deliverycontroller"></param>
             <param name="port"></param>
@@ -624,7 +629,7 @@
         </member>
         <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.GetDisplayName">
             <summary>
-            This method returns the users Display Name in the format of "firstname surname" which it reads from Active Directory.
+            This method returns the users DisplayName, which it reads from Active Directory. It will change the order of the name if it contains a comma.
             </summary>
             <returns>Display Name</returns>
         </member>
@@ -691,6 +696,16 @@
         <member name="T:SelfServiceSessionReset.Controllers.UserProcessController">
             <summary>
             This is the UserProcessController class.
+            </summary>
+        </member>
+        <member name="T:SelfServiceSessionReset.Controllers.UserProcessController.ConfigSettings">
+            <summary>
+            A private class for the key value pair used by the GetConfigurationSettings method
+            </summary>
+        </member>
+        <member name="M:SelfServiceSessionReset.Controllers.UserProcessController.GetConfigurationSettings">
+            <summary>
+            Get the configuration information from appSettings in the Web.config, skipping the serilog settings
             </summary>
         </member>
         <member name="M:SelfServiceSessionReset.Controllers.UserProcessController.GetLoggedOnUser">

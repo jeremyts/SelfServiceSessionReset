@@ -1,12 +1,10 @@
-﻿// Version 1.2
+﻿// Version 1.3
 // Written by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th June 2020
-// Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 3rd July 2021
+// Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 25th July 2021
 //
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net;
-using System.Net.Http;
 using System.Web.Http;
 using SelfServiceSessionReset.Models;
 // Required namespaces for managing processes
@@ -22,15 +20,53 @@ using System.Text;
 // HttpContext.Current.Server.MapPath
 // HttpContext.Current.Request.LogonUserIdentity.Name
 using System.Web;
+// Required to read appSettings from web.config
+using System.Configuration;
+// Required for using a NameValueCollection
+using System.Collections.Specialized;
+// Required for logging
+using Serilog;
 
 namespace SelfServiceSessionReset.Controllers
 {
+
     /// <summary>
     /// This is the UserProcessController class.
     /// </summary>
     [RoutePrefix("api/UserProcess")]
     public class UserProcessController : ApiController
     {
+        /// <summary>
+        /// A private class for the key value pair used by the GetConfigurationSettings method
+        /// </summary>
+        private class ConfigSettings
+        {
+            public string key { get; set; }
+            public string value { get; set; }
+        }
+
+        /// <summary>
+        /// Get the configuration information from appSettings in the Web.config, skipping the serilog settings
+        /// </summary>
+        private List<ConfigSettings> GetConfigurationSettings()
+        {
+            List<ConfigSettings> ConfigurationSettings = new List<ConfigSettings> { };
+            NameValueCollection appSettings = ConfigurationManager.AppSettings;
+
+            foreach (string s in appSettings.AllKeys)
+            {
+                if (s.IndexOf("serilog", StringComparison.CurrentCultureIgnoreCase) < 0)
+                {
+                    ConfigurationSettings.Add(new ConfigSettings
+                    {
+                        key = s,
+                        value = appSettings.Get(s)
+                    });
+                }
+            }
+            return ConfigurationSettings;
+        }
+
         /// <summary>
         /// Get the logged in user identify name which is returned in the format of DOMAIN\\USERNAME
         /// </summary>
@@ -287,7 +323,6 @@ namespace SelfServiceSessionReset.Controllers
             {
                 result = "Exception occured in an attempt to get the performce data of the instance for the " + processId + ": " + e.Message;
             }
-
             return null;
         }
 
@@ -431,9 +466,31 @@ namespace SelfServiceSessionReset.Controllers
         [HttpGet]
         public IEnumerable<UserProcess> GetRemoteProcessesByUsername(string remotehost)
         {
-            string username = GetLoggedOnUser();
-            // return the output of he function, which is the UserProcess list
-            return GetRemoteUserProcesses(remotehost, username);
+            bool EnableThisMethod = false;
+            var pair = GetConfigurationSettings().FirstOrDefault(x => x.key == "EnableGetTerminateProcesses");
+            if (pair != null)
+            {
+                Boolean.TryParse(pair.value.ToString(), out EnableThisMethod);
+            }
+            var result = new List<UserProcess> { };
+            if (EnableThisMethod)
+            {
+                string username = GetLoggedOnUser();
+                // return the output of he function, which is the UserProcess list
+                result = GetRemoteUserProcesses(remotehost, username);
+                Log.Information("Getting proccess from remote host " + remotehost + " for " + username + ".");
+            }
+            else
+            {
+                result.Add(new UserProcess
+                {
+                    Name = "The Get processes method is disabled.",
+                    Description = "The EnableGetTerminateProcesses appSetting is set to False in the Web.config."
+                });
+                Log.Debug("The Get processes method is disabled.");
+                Log.Debug("The EnableGetTerminateProcesses appSetting is set to False in the Web.config.");
+            }
+            return result;
         }
 
         // DELETE: api/UserProcess/Terminate
@@ -448,14 +505,32 @@ namespace SelfServiceSessionReset.Controllers
         public IHttpActionResult TerminateRemoteProcessByID([FromBody]TerminateProcess terminateprocess)
         {
             StringBuilder stringBuilder = new StringBuilder();
-            string username = GetLoggedOnUser();
-            string remotehost = terminateprocess.RemoteHost;
-            foreach (string pid in terminateprocess.PID)
+            bool EnableThisMethod = false;
+            var pair = GetConfigurationSettings().FirstOrDefault(x => x.key == "EnableGetTerminateProcesses");
+            if (pair != null)
             {
-                int.TryParse(pid, out int intpid);
-                string result = TerminateRemoteProcess(remotehost, intpid, username);
-                stringBuilder.AppendLine("PID " + pid + " termination result:" + result);
+                Boolean.TryParse(pair.value.ToString(), out EnableThisMethod);
             }
+            if (EnableThisMethod)
+            {
+                string username = GetLoggedOnUser();
+                string remotehost = terminateprocess.RemoteHost;
+                foreach (string pid in terminateprocess.PID)
+                {
+                    int.TryParse(pid, out int intpid);
+                    string result = TerminateRemoteProcess(remotehost, intpid, username);
+                    stringBuilder.AppendLine("PID " + pid + " termination result:" + result);
+                    Log.Information("Terminating PID " + pid + " from remote host " + remotehost + " for " + username + ". Result: " + result);
+                }
+            }
+            else
+            {
+                stringBuilder.AppendLine("The Terminate processes method is disabled.");
+                Log.Debug("The Terminate processes method is disabled.");
+                stringBuilder.AppendLine("The EnableGetTerminateProcesses appSetting is set to False in the Web.config.");
+                Log.Debug("The EnableGetTerminateProcesses appSetting is set to False in the Web.config.");
+            }
+            Log.Debug(stringBuilder.ToString().Substring(0, stringBuilder.ToString().Length - 1));
             return Ok(stringBuilder.ToString());
         }
 

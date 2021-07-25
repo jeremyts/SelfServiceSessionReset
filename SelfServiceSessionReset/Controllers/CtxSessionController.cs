@@ -1,6 +1,6 @@
-﻿// Version 1.6
+﻿// Version 1.7
 // Written by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th June 2020
-// Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 3rd July 2021
+// Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 25th July 2021
 //
 using System;
 using System.Collections.Generic;
@@ -37,16 +37,11 @@ using System.Net.Sockets;
 using System.Configuration;
 // Required for using a NameValueCollection
 using System.Collections.Specialized;
+// Required for logging
+using Serilog;
 
 namespace SelfServiceSessionReset.Controllers
 {
-
-    internal class ConfigSettings
-    {
-        public string key { get; set; }
-        public string value { get; set; }
-    }
-
     /// <summary>
     /// This is the CtxSessionController class.
     /// </summary>
@@ -55,7 +50,16 @@ namespace SelfServiceSessionReset.Controllers
     {
 
         /// <summary>
-        /// Get the configuration information from appSettings in the web.config
+        /// A private class for the key value pair used by the GetConfigurationSettings method
+        /// </summary>
+        private class ConfigSettings
+        {
+            public string key { get; set; }
+            public string value { get; set; }
+        }
+
+        /// <summary>
+        /// Get the configuration information from appSettings in the Web.config, skipping the serilog settings
         /// </summary>
         private List<ConfigSettings> GetConfigurationSettings()
         {
@@ -64,11 +68,14 @@ namespace SelfServiceSessionReset.Controllers
 
             foreach (string s in appSettings.AllKeys)
             {
-                ConfigurationSettings.Add(new ConfigSettings
+                if (s.IndexOf("serilog", StringComparison.CurrentCultureIgnoreCase) < 0)
                 {
-                    key = s,
-                    value = appSettings.Get(s)
-                });
+                    ConfigurationSettings.Add(new ConfigSettings
+                    {
+                        key = s,
+                        value = appSettings.Get(s)
+                    });
+                }
             }
             return ConfigurationSettings;
         }
@@ -340,11 +347,12 @@ namespace SelfServiceSessionReset.Controllers
                     stringBuilder.AppendLine("- The Citrix Remote PowerShell SDK Is not installed");
                 }
             }
+            Log.Debug(stringBuilder.ToString().Substring(0, stringBuilder.ToString().Length - 1));
             return GetCredentialProfile;
         }
 
         /// <summary>
-        /// Performs an XDPing to make sure the Delivery Controller is in a healthy state
+        /// Performs an XDPing to make sure the Delivery Controller or Cloud Connector is in a healthy state
         /// </summary>
         /// <param name="deliverycontroller"></param>
         /// <param name="port"></param>
@@ -354,6 +362,7 @@ namespace SelfServiceSessionReset.Controllers
             string service = "http://" + deliverycontroller + "/Citrix/CdsController/IRegistrar";
             string s = string.Format("POST {0} HTTP/1.1\r\nContent-Type: application/soap+xml; charset=utf-8\r\nHost: {1}:{2}\r\nContent-Length: 1\r\nExpect: 100-continue\r\nConnection: Close\r\n\r\n", (object)service, (object)deliverycontroller, (object)port);
             StringBuilder stringBuilder = new StringBuilder();
+            stringBuilder.AppendLine("Attempting an XDPing against " + deliverycontroller + " on TCP port number " + port.ToString());
             Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             bool listening = false;
             try
@@ -361,7 +370,7 @@ namespace SelfServiceSessionReset.Controllers
                 socket.Connect(deliverycontroller, port);
                 if (socket.Connected)
                 {
-                    stringBuilder.AppendLine("Socket connected");
+                    stringBuilder.AppendLine("- Socket connected");
                 }
                 byte[] bytes = Encoding.ASCII.GetBytes(s);
                 socket.Send(bytes, bytes.Length, SocketFlags.None);
@@ -374,14 +383,19 @@ namespace SelfServiceSessionReset.Controllers
                 if (str == "HTTP/1.1 100 Continue")
                 {
                     listening = true;
-                    stringBuilder.AppendLine("Service is listening");
+                    stringBuilder.AppendLine("- Service is listening");
+                }
+                else
+                {
+                    stringBuilder.AppendLine("- Service is not listening");
                 }
             }
             catch
             {
-                stringBuilder.AppendLine("Failed to connect to service");
+                stringBuilder.AppendLine("- Failed to connect to service");
             }
             socket.Dispose();
+            Log.Debug(stringBuilder.ToString().Substring(0, stringBuilder.ToString().Length-1));
             return listening;
         }
 
@@ -524,8 +538,9 @@ namespace SelfServiceSessionReset.Controllers
             catch (Exception e)
             {
                 // These are errors caused by the Citrix Remote PowerShell SDK if the project is not built with the Platform target set to x64 instead of Any CPU.
-                // - Citrix.Broker.Admin.SDK.SdkOperationException: Invalid admin server version '0' () - should be '2' (7.30.0.0)
-                // - Citrix.Broker.Admin.SDK.AdminConnectionException: Invalid admin server version '0' () - should be '2' (7.30.0.0)
+                // - Citrix.Broker.Admin.SDK.SdkOperationException: Invalid admin server version '0' () - should be '2'
+                // - Citrix.Broker.Admin.SDK.AdminConnectionException: Invalid admin server version '0' () - should be '2'
+                // This was tested with both version 7.27.0.22 and 7.30.0.0.
                 stringBuilder.AppendLine("ERROR: " + e.InnerException + " - " + e.Message + " - " + e.Source + " - " + e.StackTrace + " - " + e.TargetSite + " - " + e.Data);
             }
             pipeline.Dispose();
@@ -621,22 +636,22 @@ namespace SelfServiceSessionReset.Controllers
                     if (element.Element("Name").Value.ToUpper().Equals(SiteName.ToUpper()))
                     {
                         leave = true;
-                        stringBuilder.AppendLine(SiteName + " site found");
+                        stringBuilder.AppendLine("- " + SiteName + " site found");
                         if (string.IsNullOrEmpty(element.Element("IncludeDeliveryGroups").Value))
                         {
-                            stringBuilder.AppendLine("IncludeDeliveryGroups element is empty");
+                            stringBuilder.AppendLine("- IncludeDeliveryGroups element is empty");
                             include = true;
                         }
                         else
                         {
-                            stringBuilder.AppendLine("IncludeDeliveryGroups element is not empty");
+                            stringBuilder.AppendLine("- IncludeDeliveryGroups element is not empty");
                             string[] strArray = element.Element("IncludeDeliveryGroups").Value.Split(',');
                             foreach (string strItem in strArray)
                             {
-                                stringBuilder.AppendLine("Processing " + strItem + " Delivery Group");
+                                stringBuilder.AppendLine("- Processing " + strItem + " Delivery Group");
                                 if (DeliveryGroup.IndexOf(strItem, StringComparison.CurrentCultureIgnoreCase) >= 0)
                                 {
-                                    stringBuilder.AppendLine("Inclusion Match");
+                                    stringBuilder.AppendLine("- Inclusion Match");
                                     include = true;
                                     break;
                                 }
@@ -644,14 +659,14 @@ namespace SelfServiceSessionReset.Controllers
                         }
                         if (!string.IsNullOrEmpty(element.Element("ExcludeDeliveryGroups").Value))
                         {
-                            stringBuilder.AppendLine("ExcludeDeliveryGroups element is not empty");
+                            stringBuilder.AppendLine("- ExcludeDeliveryGroups element is not empty");
                             string[] strArray = element.Element("ExcludeDeliveryGroups").Value.Split(',');
                             foreach (string strItem in strArray)
                             {
-                                stringBuilder.AppendLine("Processing " + strItem + " Delivery Group");
+                                stringBuilder.AppendLine("- Processing " + strItem + " Delivery Group");
                                 if (DeliveryGroup.IndexOf(strItem, StringComparison.CurrentCultureIgnoreCase) >= 0)
                                 {
-                                    stringBuilder.AppendLine("Exclusion Match");
+                                    stringBuilder.AppendLine("- Exclusion Match");
                                     include = false;
                                     break;
                                 }
@@ -665,7 +680,11 @@ namespace SelfServiceSessionReset.Controllers
                     }
                 }
             }
-            stringBuilder.ToString();
+            else
+            {
+                stringBuilder.AppendLine("ERROR: the CtxSites.xml file was not found");
+            }
+            Log.Debug(stringBuilder.ToString().Substring(0, stringBuilder.ToString().Length - 1));
             return include;
         }
 
@@ -753,6 +772,7 @@ namespace SelfServiceSessionReset.Controllers
                 pipeline.Dispose();
             }
             runSpace.Close();
+            Log.Debug(stringBuilder.ToString().Substring(0, stringBuilder.ToString().Length - 1));
             // Unfortunately the Stop-BrokerSession and Disconnect-BrokerSession cmdlets do not return anything
             // so we do our best to return meaninful data.
             return stringBuilder.ToString();
@@ -825,6 +845,7 @@ namespace SelfServiceSessionReset.Controllers
                 pipeline.Dispose();
             }
             runSpace.Close();
+            Log.Debug(stringBuilder.ToString().Substring(0, stringBuilder.ToString().Length - 1));
             return stringBuilder.ToString();
         }
 
@@ -890,6 +911,7 @@ namespace SelfServiceSessionReset.Controllers
                 pipeline.Dispose();
             }
             runSpace.Close();
+            Log.Debug(stringBuilder.ToString().Substring(0, stringBuilder.ToString().Length - 1));
             // Unfortunately the Set-BrokerSession cmdlet doesn't return anything
             // So we do our best to return meaninful data.
             return stringBuilder.ToString();
@@ -903,23 +925,38 @@ namespace SelfServiceSessionReset.Controllers
         /// <returns></returns>
         private List<CtxSites> GetAllSites(bool usexml, bool usejson)
         {
+            StringBuilder stringBuilder = new StringBuilder();
             List<CtxSites> sites = new List<CtxSites>();
             if (usexml)
             {
                 if (File.Exists(HttpContext.Current.Server.MapPath("~/App_Data/CtxSites.xml")))
                 {
+                    stringBuilder.AppendLine("Found the CtxSites.xml file");
                     XDocument doc = XDocument.Load(HttpContext.Current.Server.MapPath("~/App_Data/CtxSites.xml"));
+                    int i = 1;
                     foreach (XElement element in doc.Descendants("Sites").Descendants("Site"))
                     {
                         CtxSites site = new CtxSites();
+                        stringBuilder.AppendLine("Site " + i.ToString());
                         site.FriendlyName = element.Element("FriendlyName").Value;
+                        stringBuilder.AppendLine("- FriendlyName: " + site.FriendlyName);
                         site.Name = element.Element("Name").Value;
+                        stringBuilder.AppendLine("- Name: " + site.Name);
                         site.DeliveryControllers = element.Element("DeliveryControllers").Value;
+                        stringBuilder.AppendLine("- DeliveryControllers: " + site.DeliveryControllers);
                         site.Port = element.Element("Port").Value;
+                        stringBuilder.AppendLine("- Port: " + site.Port);
                         site.Default = element.Element("Default").Value;
+                        stringBuilder.AppendLine("- Default: " + site.Default);
                         sites.Add(site);
+                        i++;
                     }
                 }
+                else
+                {
+                    stringBuilder.AppendLine("ERROR: the CtxSites.xml file was not found");
+                }
+                Log.Debug(stringBuilder.ToString().Substring(0, stringBuilder.ToString().Length - 1));
             }
             return sites;
         }
@@ -955,6 +992,7 @@ namespace SelfServiceSessionReset.Controllers
         {
             bool usexml = true;
             bool usejson = false;
+            Log.Debug("Getting the Site data from the CtxSites.xml.");
             return Ok(GetAllSites(usexml, usejson));
         }
 
@@ -967,19 +1005,23 @@ namespace SelfServiceSessionReset.Controllers
         [HttpGet]
         public IHttpActionResult GetLoggedOnUserName()
         {
-            return Ok(GetLoggedOnUser());
+            string username = GetLoggedOnUser();
+            Log.Debug("Username: " + username);
+            return Ok(username);
         }
 
         // GET: api/CtxSession/GetDisplayName
         /// <summary>
-        /// This method returns the users Display Name in the format of "firstname surname" which it reads from Active Directory.
+        /// This method returns the users DisplayName, which it reads from Active Directory. It will change the order of the name if it contains a comma.
         /// </summary>
         /// <returns>Display Name</returns>
         [Route("GetDisplayName")]
         [HttpGet]
         public IHttpActionResult GetDisplayName()
         {
-            return Ok(GetADUserProperties());
+            string displayName = GetADUserProperties();
+            Log.Debug("DisplayName: " + displayName);
+            return Ok(displayName);
         }
 
         // GET: api/CtxSession/GetSessions?sitename=&deliverycontrollers=&port=
@@ -1006,6 +1048,7 @@ namespace SelfServiceSessionReset.Controllers
                 }
             }
             string username = GetLoggedOnUser();
+            Log.Information("Getting sessions for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
             return GetCurrentSessions(sitename, deliverycontroller, username);
         }
 
@@ -1034,6 +1077,7 @@ namespace SelfServiceSessionReset.Controllers
                 }
             }
             string username = GetLoggedOnUser();
+            Log.Information("Getting the session running on" + machinename + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
             CtxSession[] sessionArray = GetCurrentSessions(sitename, deliverycontroller, username).Where<CtxSession>(c => c.MachineName.Contains(machinename)).ToArray<CtxSession>();
             return sessionArray;
         }
@@ -1049,6 +1093,7 @@ namespace SelfServiceSessionReset.Controllers
         [HttpDelete]
         public IHttpActionResult LogoffSessionsByMachineName([FromBody]CtxSessionsToAction logoffinfo)
         {
+            string result = string.Empty;
             bool disconnect = false;
             int.TryParse(logoffinfo.Port, out int intport);
             string sitename = logoffinfo.SiteName;
@@ -1064,7 +1109,15 @@ namespace SelfServiceSessionReset.Controllers
             }
             string username = GetLoggedOnUser();
             string[] machinearray = logoffinfo.MachineNames.ToArray();
-            string result = LogofforDisconnectSessions(sitename, deliverycontroller, username, machinearray, disconnect);
+            if (string.Join(",", logoffinfo.MachineNames).IndexOf(",") < 0)
+            {
+                Log.Information("Logging off the session from " + string.Join(",", logoffinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+            }
+            else
+            {
+                Log.Information("Logging off the sessions from " + string.Join(",", logoffinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+            }
+            result += LogofforDisconnectSessions(sitename, deliverycontroller, username, machinearray, disconnect);
             return Ok(result);
         }
 
@@ -1079,22 +1132,47 @@ namespace SelfServiceSessionReset.Controllers
         [HttpPut]
         public IHttpActionResult DisconnectSessionsByMachineName([FromBody]CtxSessionsToAction disconnectinfo)
         {
-            bool disconnect = true;
-            int.TryParse(disconnectinfo.Port, out int intport);
-            string sitename = disconnectinfo.SiteName;
-            string deliverycontroller = string.Empty;
-            string[] strArray = disconnectinfo.DeliveryControllers.Split(',');
-            foreach (string strItem in strArray)
+            bool EnableThisMethod = false;
+            var pair = GetConfigurationSettings().FirstOrDefault(x => x.key == "EnableDisconnectSessions");
+            if (pair != null)
             {
-                deliverycontroller = strItem;
-                if (XDPing(deliverycontroller, intport))
-                {
-                    break;
-                }
+                Boolean.TryParse(pair.value.ToString(), out EnableThisMethod);
             }
-            string username = GetLoggedOnUser();
-            string[] machinearray = disconnectinfo.MachineNames.ToArray();
-            string result = LogofforDisconnectSessions(sitename, deliverycontroller, username, machinearray, disconnect);
+            string result = string.Empty;
+            if (EnableThisMethod)
+            {
+                bool disconnect = true;
+                int.TryParse(disconnectinfo.Port, out int intport);
+                string sitename = disconnectinfo.SiteName;
+                string deliverycontroller = string.Empty;
+                string[] strArray = disconnectinfo.DeliveryControllers.Split(',');
+                foreach (string strItem in strArray)
+                {
+                    deliverycontroller = strItem;
+                    if (XDPing(deliverycontroller, intport))
+                    {
+                        break;
+                    }
+                }
+                string username = GetLoggedOnUser();
+                string[] machinearray = disconnectinfo.MachineNames.ToArray();
+                if (string.Join(",", disconnectinfo.MachineNames).IndexOf(",") < 0)
+                {
+                    Log.Information("Disconnecting session from " + string.Join(",", disconnectinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+                }
+                else
+                {
+                    Log.Information("Disconnecting sessions from " + string.Join(",", disconnectinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+                }
+                result += (LogofforDisconnectSessions(sitename, deliverycontroller, username, machinearray, disconnect)) + Environment.NewLine;
+            }
+            else
+            {
+                result += "The DisconnectSessions method is disabled" + Environment.NewLine;
+                Log.Debug("The DisconnectSessions method is disabled");
+                result += "The EnableDisconnectSessions appSetting is set to False in the Web.config." + Environment.NewLine;
+                Log.Debug("The EnableDisconnectSessions appSetting is set to False in the Web.config.");
+            }
             return Ok(result);
         }
 
@@ -1112,44 +1190,115 @@ namespace SelfServiceSessionReset.Controllers
         [HttpDelete]
         public IHttpActionResult RestartMachinesByMachineName([FromBody]CtxSessionsToAction restartinfo)
         {
-            int.TryParse(restartinfo.Port, out int intport);
             bool reset = restartinfo.Reset;
-            string sitename = restartinfo.SiteName;
-            string deliverycontroller = string.Empty;
-            string[] strArray = restartinfo.DeliveryControllers.Split(',');
-            foreach (string strItem in strArray)
+            bool EnableThisMethod = false;
+            var pair = new ConfigSettings();
+            if (!reset)
             {
-                deliverycontroller = strItem;
-                if (XDPing(deliverycontroller, intport))
-                {
-                    break;
-                }
+                pair = GetConfigurationSettings().FirstOrDefault(x => x.key == "EnableGracefulMachineRestart");
             }
-            string username = GetLoggedOnUser();
-            string[] machinearray = restartinfo.MachineNames.ToArray();
+            else
+            {
+                pair = GetConfigurationSettings().FirstOrDefault(x => x.key == "EnableForcedMachineRestart");
+            }
+            if (pair != null)
+            {
+                Boolean.TryParse(pair.value.ToString(), out EnableThisMethod);
+            }
             string result = string.Empty;
-            // Create a new array by verifying that each machine meets the following criteria.
-            // - OSType contains Windows
-            // AND
-            // - OSType does not contain 20 for Windows 2008 R2, 2012 R2, 2016, 2019, etc
-            // AND
-            // - SessionSupport must be SingleSession
-            List<string> CriteriaMetList = new List<string>();
-            foreach (string machinename in machinearray)
+            if (EnableThisMethod)
             {
-                CtxSession[] sessionArray = GetCurrentSessions(sitename, deliverycontroller, username).Where<CtxSession>(c => c.MachineName.Contains(machinename) && c.OSType.Contains("Windows") && !c.OSType.Contains("20") && c.SessionSupport == "SingleSession").ToArray<CtxSession>();
-                if (sessionArray.Length == 1)
+                int.TryParse(restartinfo.Port, out int intport);
+                string sitename = restartinfo.SiteName;
+                string deliverycontroller = string.Empty;
+                string[] strArray = restartinfo.DeliveryControllers.Split(',');
+                foreach (string strItem in strArray)
                 {
-                    CriteriaMetList.Add(machinename);
-                    result += machinename + " meets the criteria to be restarted" + Environment.NewLine;
-
+                    deliverycontroller = strItem;
+                    if (XDPing(deliverycontroller, intport))
+                    {
+                        break;
+                    }
                 }
-                else if (sessionArray.Length == 0)
+                string username = GetLoggedOnUser();
+                string[] machinearray = restartinfo.MachineNames.ToArray();
+                // Create a new array by verifying that each machine meets the following criteria.
+                // - OSType contains Windows
+                // AND
+                // - OSType does not contain 20 for Windows 2008 R2, 2012 R2, 2016, 2019, etc
+                // AND
+                // - SessionSupport must be SingleSession
+                List<string> CriteriaMetList = new List<string>();
+                List<string> CriteriaNotMetList = new List<string>();
+                foreach (string machinename in machinearray)
                 {
-                    result += machinename + " does not meet the criteria to be restarted" + Environment.NewLine;
+                    CtxSession[] sessionArray = GetCurrentSessions(sitename, deliverycontroller, username).Where<CtxSession>(c => c.MachineName.Contains(machinename) && c.OSType.Contains("Windows") && !c.OSType.Contains("20") && c.SessionSupport == "SingleSession").ToArray<CtxSession>();
+                    if (sessionArray.Length == 1)
+                    {
+                        CriteriaMetList.Add(machinename);
+                        result += machinename + " meets the criteria to be restarted" + Environment.NewLine;
+                        Log.Debug(machinename + " meets the criteria to be restarted");
+                    }
+                    else if (sessionArray.Length == 0)
+                    {
+                        CriteriaNotMetList.Add(machinename);
+                        result += machinename + " does not meet the criteria to be restarted" + Environment.NewLine;
+                        Log.Debug(machinename + " does not meet the criteria to be restarted");
+                    }
+                }
+                if (CriteriaMetList.ToArray().Length > 0)
+                {
+                    if (!reset)
+                    {
+                        if (string.Join(",", CriteriaMetList).IndexOf(",") < 0)
+                        {
+                            Log.Information("Restarting machine " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+                        }
+                        else
+                        {
+                            Log.Information("Restarting machines " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+                        }
+                    }
+                    else
+                    {
+                        if (string.Join(",", CriteriaMetList).IndexOf(",") < 0)
+                        {
+                            Log.Information("Forcefully restarting machine " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+                        }
+                        else
+                        {
+                            Log.Information("Forcefully restarting machines " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+                        }
+                    }
+                    result += (RestartMachines(sitename, deliverycontroller, CriteriaMetList.ToArray(), reset)) + Environment.NewLine;
+                }
+                if (CriteriaNotMetList.ToArray().Length > 0)
+                {
+                    if (string.Join(",", CriteriaNotMetList).IndexOf(",") < 0)
+                    {
+                        Log.Information("The machine " + string.Join(",", CriteriaNotMetList) + " does not meet the criteria to be restarted for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+                    }
+                    else
+                    {
+                        Log.Information("The machines " + string.Join(",", CriteriaNotMetList) + " do not meet the criteria to be restarted for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+                    }
                 }
             }
-            result += RestartMachines(sitename, deliverycontroller, CriteriaMetList.ToArray(), reset);
+            else
+            {
+                result += "The RestartMachines method is disabled." + Environment.NewLine;
+                Log.Debug("The RestartMachines method is disabled.");
+                if (!reset)
+                {
+                    result += "The EnableGracefulMachineRestart appSetting is set to False in the Web.config." + Environment.NewLine;
+                    Log.Debug("The EnableGracefulMachineRestart appSetting is set to False in the Web.config.");
+                }
+                else
+                {
+                    result += "The EnableForcedMachineRestart appSetting is set to False in the Web.config." + Environment.NewLine;
+                    Log.Debug("The EnableForcedMachineRestart appSetting is set to False in the Web.config.");
+                }
+            }
             return Ok(result);
         }
 
@@ -1170,44 +1319,141 @@ namespace SelfServiceSessionReset.Controllers
         [HttpPut]
         public IHttpActionResult HideSessionsByMachineName([FromBody]CtxSessionsToAction hideinfo)
         {
-            int.TryParse(hideinfo.Port, out int intport);
-            bool hide = true;
-            string sitename = hideinfo.SiteName;
-            string deliverycontroller = string.Empty;
-            string[] strArray = hideinfo.DeliveryControllers.Split(',');
-            foreach (string strItem in strArray)
+            bool hide = hideinfo.Hide;
+            bool EnableThisMethod = false;
+            var pair = new ConfigSettings();
+            if (hide)
             {
-                deliverycontroller = strItem;
-                if (XDPing(deliverycontroller, intport))
-                {
-                    break;
-                }
+                pair = GetConfigurationSettings().FirstOrDefault(x => x.key == "EnableHideStuckSessions");
             }
-            string username = GetLoggedOnUser();
-            string[] machinearray = hideinfo.MachineNames.ToArray();
+            else
+            {
+                pair = GetConfigurationSettings().FirstOrDefault(x => x.key == "EnableUnhideSessions");
+            }
+            if (pair != null)
+            {
+                Boolean.TryParse(pair.value.ToString(), out EnableThisMethod);
+            }
             string result = string.Empty;
-            // Create a new array by verifying that each machine meets the following criteria, which prevents users from hiding sessions unnecessarily. 
-            // - RegistrationState must be Unregistered
-            // OR
-            // - PowerState must be Unknown, Off or TurningOff
-            // OR
-            // - MaintenanceMode must be On
-            List<string> CriteriaMetList = new List<string>();
-            foreach (string machinename in machinearray)
+            if (EnableThisMethod)
             {
-                CtxSession[] sessionArray = GetCurrentSessions(sitename, deliverycontroller, username).Where<CtxSession>(c => c.MachineName.Contains(machinename) && (c.RegistrationState == "Unregistered" || c.PowerState == "Unknown" || c.PowerState == "Off" || c.PowerState == "TurningOff" || c.MaintenanceMode == "On")).ToArray<CtxSession>();
-                if (sessionArray.Length == 1)
+                bool bypassCriteria = false;
+                if (hide)
                 {
-                    CriteriaMetList.Add(machinename);
-                    result += machinename + " meets the criteria to be hidden" + Environment.NewLine;
-
+                    pair = GetConfigurationSettings().FirstOrDefault(x => x.key == "BypassCriteriaChecksForHideSessions");
+                    if (pair != null)
+                    {
+                        Boolean.TryParse(pair.value.ToString(), out bypassCriteria);
+                    }
                 }
-                else if (sessionArray.Length == 0)
+                int.TryParse(hideinfo.Port, out int intport);
+                string sitename = hideinfo.SiteName;
+                string deliverycontroller = string.Empty;
+                string[] strArray = hideinfo.DeliveryControllers.Split(',');
+                foreach (string strItem in strArray)
                 {
-                    result += machinename + " does not meet the criteria to be hidden" + Environment.NewLine;
+                    deliverycontroller = strItem;
+                    if (XDPing(deliverycontroller, intport))
+                    {
+                        break;
+                    }
+                }
+                string username = GetLoggedOnUser();
+                string[] machinearray = hideinfo.MachineNames.ToArray();
+                if (hide && !bypassCriteria)
+                {
+                    // Create a new array by verifying that each machine meets the following criteria, which prevents users from hiding sessions unnecessarily. 
+                    // - RegistrationState must be Unregistered
+                    // OR
+                    // - PowerState must be Unknown, Off or TurningOff
+                    // OR
+                    // - MaintenanceMode must be On
+                    List<string> CriteriaMetList = new List<string>();
+                    List<string> CriteriaNotMetList = new List<string>();
+                    foreach (string machinename in machinearray)
+                    {
+                        CtxSession[] sessionArray = GetCurrentSessions(sitename, deliverycontroller, username).Where<CtxSession>(c => c.MachineName.Contains(machinename) && (c.RegistrationState == "Unregistered" || c.PowerState == "Unknown" || c.PowerState == "Off" || c.PowerState == "TurningOff" || c.MaintenanceMode == "On")).ToArray<CtxSession>();
+                        if (sessionArray.Length == 1)
+                        {
+                            CriteriaMetList.Add(machinename);
+                            result += machinename + " meets the criteria to be hidden" + Environment.NewLine;
+                            Log.Debug(machinename + " meets the criteria to be hidden");
+                        }
+                        else if (sessionArray.Length == 0)
+                        {
+                            CriteriaNotMetList.Add(machinename);
+                            result += machinename + " does not meet the criteria to be hidden" + Environment.NewLine;
+                            Log.Debug(machinename + " does not meet the criteria to be hidden");
+                        }
+                    }
+                    if (CriteriaMetList.ToArray().Length > 0)
+                    {
+                        if (string.Join(",", CriteriaMetList).IndexOf(",") < 0)
+                        {
+                            Log.Information("Hiding session from machine " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+                        }
+                        else
+                        {
+                            Log.Information("Hiding sessions from machines " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+                        }
+                        result += (HideSessions(sitename, deliverycontroller, username, CriteriaMetList.ToArray(), hide)) + Environment.NewLine;
+                    }
+                    if (CriteriaNotMetList.ToArray().Length > 0)
+                    {
+                        if (string.Join(",", CriteriaNotMetList).IndexOf(",") < 0)
+                        {
+                            Log.Information("The session on machine " + string.Join(",", CriteriaNotMetList) + " does not meet the criteria to be hidden for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+                        }
+                        else
+                        {
+                            Log.Information("The session on machines " + string.Join(",", CriteriaNotMetList) + " do not meet the criteria to be hidden for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+                        }
+                    }
+                }
+                else if ((hide && bypassCriteria) || !hide)
+                {
+                    if (hide && bypassCriteria)
+                    {
+                        if (string.Join(",", hideinfo.MachineNames).IndexOf(",") < 0)
+                        {
+                            Log.Information("Hiding session on machine " + string.Join(",", hideinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller bypassing the criteria checks.");
+                        }
+                        else
+                        {
+                            Log.Information("Hiding sessions on machines " + string.Join(",", hideinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller bypassing the criteria checks.");
+                        }
+                        result += "Hiding session(s) bypassing the criteria checks" + Environment.NewLine;
+                    }
+                    if (!hide)
+                    {
+                        if (string.Join(",", hideinfo.MachineNames).IndexOf(",") < 0)
+                        {
+                            Log.Information("Unhiding session on machine " + string.Join(",", hideinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+                        }
+                        else
+                        {
+                            Log.Information("Unhiding sessions on machines " + string.Join(",", hideinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+                        }
+                        result += "Unhiding session(s)" + Environment.NewLine;
+                    }
+                    result += HideSessions(sitename, deliverycontroller, username, machinearray, hide);
                 }
             }
-            result += HideSessions(sitename, deliverycontroller, username, CriteriaMetList.ToArray(), hide);
+            else
+            {
+                result += "The HideSessions method is disabled." + Environment.NewLine;
+                Log.Debug("The HideSessions method is disabled.");
+                if (hide)
+                {
+                    result += "The EnableHideStuckSessions appSetting is set to False in the Web.config." + Environment.NewLine;
+                    Log.Debug("The EnableHideStuckSessions appSetting is set to False in the Web.config.");
+                }
+                else
+                {
+                    result += "The EnableUnhideSessions appSetting is set to False in the Web.config." + Environment.NewLine;
+                    Log.Debug("The EnableUnhideSessions appSetting is set to False in the Web.config.");
+                }
+            }
             return Ok(result);
         }
 

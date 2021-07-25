@@ -221,6 +221,8 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 5th July 2021
     <!--Hide this element by default and then we make it visible on document load depending on the appSettings-->
     <button class="button" id="hideSessions" style="display:none">Hide Stuck Sessions</button>
     <!--Hide this element by default and then we make it visible on document load depending on the appSettings-->
+    <button class="button" id="unhideSessions" style="display:none">Unhide Sessions</button>
+    <!--Hide this element by default and then we make it visible on document load depending on the appSettings-->
     <button class="button" id="terminateProcesses" style="display:none">Terminate Processes</button>
     <div id="GetTerminateProcessesSection" style="display:none">
         <br /><br />
@@ -275,6 +277,8 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 5th July 2021
         var EnableForcedMachineRestart = false;
         var EnableHideStuckSessions = false;
         var EnableInstructions = true;
+        var BypassCriteriaChecksForHideSessions = false;
+        var EnableUnhideSessions = false;
 
         function Get24hourTime() {
             var time = new Date();
@@ -290,7 +294,7 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 5th July 2021
         // from the Web.config file and set the variables accordingly. We also nest
         // the getLoggedOnUserName, getDisplayName, and getCtxSiteList to take
         // advantage of the lock on the ready event.
-        const GetAppSettings = async () => {
+        const getAppSettings = async () => {
             const response = await fetch("api/CtxSession/GetAppSettings", {
                 method: "GET",
                 headers: {
@@ -307,6 +311,13 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 5th July 2021
                 };
                 //console.info("Setting the value for:" + thekey);
             };
+            if (BypassCriteriaChecksForHideSessions || EnableUnhideSessions)
+            {
+                EnableHideStuckSessions = true;
+            }
+            if (EnableUnhideSessions) {
+                BypassCriteriaChecksForHideSessions = true;
+            }
             console.info("AppSettings:", result);
             // Get the logged on username
             getLoggedOnUserName()
@@ -321,7 +332,7 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 5th July 2021
         // Put a lock the ready event until the app settings and initial variables are set.
         $.holdReady(true)
         // Call the function to get the app settings.
-        GetAppSettings();
+        getAppSettings();
 
         // Initialise some tasks on document load
         $(document).ready(function () {
@@ -366,8 +377,16 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 5th July 2021
                 $('#sessionsTable td:nth-child(12), #sessionsTable th:nth-child(12)').show();
                 // Make the hideSessions button visible
                 document.getElementById("hideSessions").style.display = "";
-                // Disable the restartMachinesForcefully button
+                // Disable the hideSessions button
                 $("#hideSessions").attr("disabled", true);
+            };
+            if (EnableUnhideSessions) {
+                // Show the Hidden column in the sessionsTable
+                $('#sessionsTable td:nth-child(12), #sessionsTable th:nth-child(12)').show();
+                // Make the unhideSessions button visible
+                document.getElementById("unhideSessions").style.display = "";
+                // Disable the unhideSessions button
+                $("#unhideSessions").attr("disabled", true);
             };
             if (EnableInstructions) {
                 // Make the InstructionsSection section visible
@@ -496,6 +515,10 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 5th July 2021
                             // Enable the hideSessions button
                             $("#hideSessions").attr("disabled", false);
                         }
+                        if (EnableUnhideSessions) {
+                            // Enable the unhideSessions button
+                            $("#unhideSessions").attr("disabled", false);
+                        }
                     }
                 }
             })
@@ -598,6 +621,30 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 5th July 2021
         // Create an action to hide selected sessions
         $('#hideSessions').click(function () {
             var hide = true;
+            var sessions = [];
+            $.each($('input:checkbox[id^="tr-session-checkbox"]:checked'), function (index, value) {
+                var data = $(this).parents('tr:eq(0)');
+                if ($(data).find('td:eq(1)').text() != '') {
+                    sessions.push($(data).find('td:eq(1)').text());
+                }
+            });
+            var message = "";
+            if (sessions.length >= 1) {
+                hideSessions(sitename, deliverycontrollers, port, sessions, hide);
+                console.info("Selected sessions:", sessions);
+            } else {
+                message = "No sessions selected";
+            }
+            if (message != "") {
+                OpenStatusPopup()
+                $("#statusmessage").append("<span>" + Get24hourTime() + ": " + message + "</br></span>");
+                console.info(message);
+            }
+        });
+
+        // Create an action to unhide selected sessions
+        $('#unhideSessions').click(function () {
+            var hide = false;
             var sessions = [];
             $.each($('input:checkbox[id^="tr-session-checkbox"]:checked'), function (index, value) {
                 var data = $(this).parents('tr:eq(0)');
@@ -885,66 +932,61 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 5th July 2021
                 var IdleSince = data[i].IdleSince.replace(' ', "<br />")
                 if (data[i].Include == true) {
                     var row = `<tr class="session-row">
-                                                                                            <td>
-                                                                                                <div class="checkbox">
-                                                                                                    <input type="checkbox" id="tr-session-checkbox${i}">
-                                                                                                    <label for="tr-session-checkbox${i}"></label>
-                                                                                                </div>
-                                                                                            </td>
-                                                                                            <td nowrap="nowrap">${MachineName}</td>
-                                                                                            <td>${data[i].SessionState}</td>
-                                                                                            <td>${StartTime}</td>
-                                                                                            <td>${SessionStateChangeTime}</td>
-                                                                                            <td>${data[i].ApplicationState}</td>
-                                                                                            <td>${ApplicationStateLastChangeTime}</td>
-                                                                                            <td nowrap="nowrap">${ApplicationsInUse}</td>
-                                                                                            <td>${data[i].IdleDuration}</td>
-                                                                                            <td>${IdleSince}</td>
-                                                                                            <td>${data[i].RestartSupported}</td>
-                                                                                            <td>${data[i].Hidden}</td>
-                                                                                            <td>${data[i].MaintenanceMode}</td>
-                                                                                            <td>${data[i].PowerState}</td>
-                                                                                            <td>${data[i].RegistrationState}</td>
-                                                                                        </tr>`
+                                                                                                <td>
+                                                                                                    <div class="checkbox">
+                                                                                                        <input type="checkbox" id="tr-session-checkbox${i}">
+                                                                                                        <label for="tr-session-checkbox${i}"></label>
+                                                                                                    </div>
+                                                                                                </td>
+                                                                                                <td nowrap="nowrap">${MachineName}</td>
+                                                                                                <td>${data[i].SessionState}</td>
+                                                                                                <td>${StartTime}</td>
+                                                                                                <td>${SessionStateChangeTime}</td>
+                                                                                                <td>${data[i].ApplicationState}</td>
+                                                                                                <td>${ApplicationStateLastChangeTime}</td>
+                                                                                                <td nowrap="nowrap">${ApplicationsInUse}</td>
+                                                                                                <td>${data[i].IdleDuration}</td>
+                                                                                                <td>${IdleSince}</td>
+                                                                                                <td>${data[i].RestartSupported}</td>
+                                                                                                <td>${data[i].Hidden}</td>
+                                                                                                <td>${data[i].MaintenanceMode}</td>
+                                                                                                <td>${data[i].PowerState}</td>
+                                                                                                <td>${data[i].RegistrationState}</td>
+                                                                                            </tr>`
                 } else {
                     var row = `<tr class="session-row-disabled">
-                                                                                            <td>
-                                                                                                <div class="checkbox">
-                                                                                                    <input type="checkbox" id="tr-session-checkbox${i}" disabled/>
-                                                                                                    <label for="tr-session-checkbox${i}"></label>
-                                                                                                </div>
-                                                                                            </td>
-                                                                                            <td nowrap="nowrap">${MachineName}</td>
-                                                                                            <td>${data[i].SessionState}</td>
-                                                                                            <td>${StartTime}</td>
-                                                                                            <td>${SessionStateChangeTime}</td>
-                                                                                            <td>${data[i].ApplicationState}</td>
-                                                                                            <td>${ApplicationStateLastChangeTime}</td>
-                                                                                            <td nowrap="nowrap">${ApplicationsInUse}</td>
-                                                                                            <td>${data[i].IdleDuration}</td>
-                                                                                            <td>${IdleSince}</td>
-                                                                                            <td>${data[i].RestartSupported}</td>
-                                                                                            <td>${data[i].Hidden}</td>
-                                                                                            <td>${data[i].MaintenanceMode}</td>
-                                                                                            <td>${data[i].PowerState}</td>
-                                                                                            <td>${data[i].RegistrationState}</td>
-                                                                                        </tr>`
+                                                                                                <td>
+                                                                                                    <div class="checkbox">
+                                                                                                        <input type="checkbox" id="tr-session-checkbox${i}" disabled/>
+                                                                                                        <label for="tr-session-checkbox${i}"></label>
+                                                                                                    </div>
+                                                                                                </td>
+                                                                                                <td nowrap="nowrap">${MachineName}</td>
+                                                                                                <td>${data[i].SessionState}</td>
+                                                                                                <td>${StartTime}</td>
+                                                                                                <td>${SessionStateChangeTime}</td>
+                                                                                                <td>${data[i].ApplicationState}</td>
+                                                                                                <td>${ApplicationStateLastChangeTime}</td>
+                                                                                                <td nowrap="nowrap">${ApplicationsInUse}</td>
+                                                                                                <td>${data[i].IdleDuration}</td>
+                                                                                                <td>${IdleSince}</td>
+                                                                                                <td>${data[i].RestartSupported}</td>
+                                                                                                <td>${data[i].Hidden}</td>
+                                                                                                <td>${data[i].MaintenanceMode}</td>
+                                                                                                <td>${data[i].PowerState}</td>
+                                                                                                <td>${data[i].RegistrationState}</td>
+                                                                                            </tr>`
                 }
                 var newrow = "";
                 var lines = row.split("\n");
-                for (var j = 0; j < lines.length; j++)
-                {
-                    if (j == 16)
-                    {
-                        if (EnableGracefulMachineRestart || EnableForcedMachineRestart)
-                        {
+                for (var j = 0; j < lines.length; j++) {
+                    if (j == 16) {
+                        if (EnableGracefulMachineRestart || EnableForcedMachineRestart) {
                             newrow = newrow + lines[j];
                         };
                     };
-                    if (j == 17)
-                    {
-                        if (EnableHideStuckSessions)
-                        {
+                    if (j == 17) {
+                        if (EnableHideStuckSessions || EnableUnhideSessions) {
                             newrow = newrow + lines[j];
                         };
                     };
@@ -987,24 +1029,24 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 5th July 2021
 
             for (var i = 0; i < data.length; i++) {
                 var row = `<tr class=process-row>
-                                                                                            <td>
-                                                                                                <div class="checkbox">
-                                                                                                    <input type="checkbox" id="tr-process-checkbox${i}">
-                                                                                                    <label for="tr-process-checkbox${i}"></label>
-                                                                                                </div>
-                                                                                            </td>
-                                                                                            <td>${data[i].Name}</td>
-                                                                                            <td>${data[i].PID}</td>
-                                                                                            <td>${data[i].BytesPrivateMemorySize}</td>
-                                                                                            <td>${data[i].BytesWorkingSet}</td>
-                                                                                            <td>${data[i].BytesPeakWorkingSet}</td>
-                                                                                            <td>${data[i].BytesPagedMemorySize}</td>
-                                                                                            <td>${data[i].CpuUsagePercentage}</td>
-                                                                                            <td>${data[i].HandleCount}</td>
-                                                                                            <td>${data[i].Threads}</td>
-                                                                                            <td>${data[i].CommandLine}</td>
-                                                                                            <td>${data[i].Description}</td>
-                                                                                        </tr>`
+                                                                                                <td>
+                                                                                                    <div class="checkbox">
+                                                                                                        <input type="checkbox" id="tr-process-checkbox${i}">
+                                                                                                        <label for="tr-process-checkbox${i}"></label>
+                                                                                                    </div>
+                                                                                                </td>
+                                                                                                <td>${data[i].Name}</td>
+                                                                                                <td>${data[i].PID}</td>
+                                                                                                <td>${data[i].BytesPrivateMemorySize}</td>
+                                                                                                <td>${data[i].BytesWorkingSet}</td>
+                                                                                                <td>${data[i].BytesPeakWorkingSet}</td>
+                                                                                                <td>${data[i].BytesPagedMemorySize}</td>
+                                                                                                <td>${data[i].CpuUsagePercentage}</td>
+                                                                                                <td>${data[i].HandleCount}</td>
+                                                                                                <td>${data[i].Threads}</td>
+                                                                                                <td>${data[i].CommandLine}</td>
+                                                                                                <td>${data[i].Description}</td>
+                                                                                            </tr>`
                 table.innerHTML += row
             }
         };
@@ -1016,53 +1058,99 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 5th July 2021
             var i = 1;
             var newinstructions = `<p><b>Actions you can take:</b></p>`
             newinstructions = newinstructions +
-                   `<p>${i}) Log off an existing session, or sessions. This is the simplest action to take.</p>`
+                `<p>${i}) Log off an existing session, or sessions. This is the simplest action to take.</p>`
             if (EnableDisconnectSessions) {
                 newinstructions = newinstructions + `
-                    <p>${i = i + 1}) Disconnect an existing session, or sessions. Handy if you left your workstation unlocked and unattended.</p>`
+                        <p>${i = i + 1}) Disconnect an existing session, or sessions. Handy if you left your workstation unlocked and unattended.</p>`
             }
             if (EnableGetTerminateProcesses) {
                 newinstructions = newinstructions + `
-                    <p>${i = i + 1}) Get the processes for an existing session which will allow you view their status and terminate them.</p>`
+                        <p>${i = i + 1}) Get the processes for an existing session which will allow you view their status and terminate them.</p>`
             }
             if (EnableGracefulMachineRestart) {
                 newinstructions = newinstructions + `
-                    <p>${i = i + 1}) Restart the machine when logoff does not work. This action is only supported on machines where Restart Supported is set to True.</p>`
+                        <p>${i = i + 1}) Restart the machine when logoff does not work. This action is only supported on machines where Restart Supported is set to True.</p>`
             }
             if (EnableForcedMachineRestart) {
                 newinstructions = newinstructions + `
-                    <p>${i = i + 1}) Force the restart of the machine if a standard restart does not work.</p>
-                    <p>
-                        &nbsp;&nbsp;&nbsp;&nbsp;It is important to note that force restarting a machine may leave the applications or desktops open on your screen that you cannot interact with. These<br/>
-                        &nbsp;&nbsp;&nbsp;&nbsp;will disappear after 3 minutes by design. Citrix Workspace App (Receiver) may take a further 2 minutes to close out the attempt to auto reconnect to that<br/>
-                        &nbsp;&nbsp;&nbsp;&nbsp;session before you can start again.<br/>
-                    </p >`
+                        <p>${i = i + 1}) Force the restart of the machine if a standard restart does not work.</p>
+                        <p>
+                            &nbsp;&nbsp;&nbsp;&nbsp;It is important to note that force restarting a machine may leave the applications or desktops open on your screen that you cannot interact with. These<br/>
+                            &nbsp;&nbsp;&nbsp;&nbsp;will disappear after 3 minutes by design. Citrix Workspace App (Receiver) may take a further 2 minutes to close out the attempt to auto reconnect to that<br/>
+                            &nbsp;&nbsp;&nbsp;&nbsp;session before you can start again.<br/>
+                        </p >`
             }
-            if (EnableHideStuckSessions) {
+            if (EnableHideStuckSessions && !BypassCriteriaChecksForHideSessions && !EnableUnhideSessions && (EnableGracefulMachineRestart || EnableForcedMachineRestart)) {
                 newinstructions = newinstructions + `
-                    <p>${i = i + 1}) Hide a session when logoff and/or restart does not work. This can only be done when any of the following conditions are true:<br />
-                        &nbsp;&nbsp;&nbsp;&nbsp;1) Registration State is Unregistered<br />
-                        &nbsp;&nbsp;&nbsp;&nbsp;2) Power State is Off, Unknown, or stuck in the process of TurningOff<br />
-                        &nbsp;&nbsp;&nbsp;&nbsp;3) Maintenance Mode is On<br />
-                    </p>
-                    <p>
-                        &nbsp;&nbsp;&nbsp;&nbsp;Hidden sessions are treated as though they do not exist; allowing you to start a new session. However, depending on the state of the session this action<br />
-                        &nbsp;&nbsp;&nbsp;&nbsp;may not release any checked out licenses or locked files you may still have open in that session. Once the session is hidden, it is unable to be unhidden.
-                    </p>`
+                        <p>${i = i + 1}) Hide a session when logoff and/or restart does not work. This can only be done when any of the following conditions are true:<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;1) Registration State is Unregistered<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;2) Power State is Off, Unknown, or stuck in the process of TurningOff<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;3) Maintenance Mode is On<br />
+                        </p>
+                        <p>
+                            &nbsp;&nbsp;&nbsp;&nbsp;Hidden sessions are treated as though they do not exist; allowing you to start a new session. However, depending on the state of the session this action<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;may not release any checked out licenses or locked files you may still have open in that session. Once the session is hidden, it is unable to be unhidden.
+                        </p>`
+            }
+            if (EnableHideStuckSessions && BypassCriteriaChecksForHideSessions && !EnableUnhideSessions && (EnableGracefulMachineRestart || EnableForcedMachineRestart)) {
+                newinstructions = newinstructions + `
+                        <p>${i = i + 1}) Hide a session when logoff and/or restart does not work.</p>
+                        <p>
+                            &nbsp;&nbsp;&nbsp;&nbsp;Hidden sessions are treated as though they do not exist; allowing you to start a new session. However, depending on the state of the session this action<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;may not release any checked out licenses or locked files you may still have open in that session. Once the session is hidden, it is unable to be unhidden.
+                        </p>`
+            }
+            if (EnableHideStuckSessions && BypassCriteriaChecksForHideSessions && EnableUnhideSessions && (EnableGracefulMachineRestart || EnableForcedMachineRestart)) {
+                newinstructions = newinstructions + `
+                        <p>${i = i + 1}) Hide a session when logoff and/or restart does not work.</p>
+                        <p>
+                            &nbsp;&nbsp;&nbsp;&nbsp;Hidden sessions are treated as though they do not exist; allowing you to start a new session. However, depending on the state of the session this action<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;may not release any checked out licenses or locked files you may still have open in that session.
+                        </p>
+                        <p> ${ i = i + 1 }) Unhide a session that was previously hidden by mistake or to allow the support teams to address an issue.</p >`
+            }
+            if (EnableHideStuckSessions && !BypassCriteriaChecksForHideSessions && !EnableUnhideSessions && (!EnableGracefulMachineRestart && !EnableForcedMachineRestart)) {
+                newinstructions = newinstructions + `
+                        <p>${i = i + 1}) Hide a session when logoff does not work. This can only be done when any of the following conditions are true:<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;1) Registration State is Unregistered<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;2) Power State is Off, Unknown, or stuck in the process of TurningOff<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;3) Maintenance Mode is On<br />
+                        </p>
+                        <p>
+                            &nbsp;&nbsp;&nbsp;&nbsp;Hidden sessions are treated as though they do not exist; allowing you to start a new session. However, depending on the state of the session this action<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;may not release any checked out licenses or locked files you may still have open in that session. Once the session is hidden, it is unable to be unhidden.
+                        </p>`
+            }
+            if (EnableHideStuckSessions && BypassCriteriaChecksForHideSessions && !EnableUnhideSessions && (!EnableGracefulMachineRestart && !EnableForcedMachineRestart)) {
+                newinstructions = newinstructions + `
+                        <p>${i = i + 1}) Hide a session when logoff does not work.</p>
+                        <p>
+                            &nbsp;&nbsp;&nbsp;&nbsp;Hidden sessions are treated as though they do not exist; allowing you to start a new session. However, depending on the state of the session this action<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;may not release any checked out licenses or locked files you may still have open in that session. Once the session is hidden, it is unable to be unhidden.
+                        </p>`
+            }
+            if (EnableHideStuckSessions && BypassCriteriaChecksForHideSessions && EnableUnhideSessions && (!EnableGracefulMachineRestart && !EnableForcedMachineRestart)) {
+                newinstructions = newinstructions + `
+                        <p>${i = i + 1}) Hide a session when logoff does not work.</p>
+                        <p>
+                            &nbsp;&nbsp;&nbsp;&nbsp;Hidden sessions are treated as though they do not exist; allowing you to start a new session. However, depending on the state of the session this action<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;may not release any checked out licenses or locked files you may still have open in that session.
+                        </p>
+                        <p> ${ i = i + 1}) Unhide a session that was previously hidden by mistake or to allow the support teams to address an issue.</p >`
             }
             newinstructions = newinstructions + `<p>${i = i + 1}) Contact the Service Desk if the above actions do not work, or you are unsure how to proceed. This tool may not address every scenario.</p>`
             if (EnableGetTerminateProcesses) {
                 newinstructions = newinstructions + `
-                     <p>
-                        &nbsp;If you see that the Application State of a Session is "Application not running", you may want to use the Get Processes function to verify if there is anything<br />
-                        &nbsp;running in the background before logging it off.
-                    </p>`
+                         <p>
+                            &nbsp;If you see that the Application State of a Session is "Application not running", you may want to use the Get Processes function to verify if there is anything<br />
+                            &nbsp;running in the background before logging it off.
+                        </p>`
             }
             newinstructions = newinstructions + `
-                     <p>
-                        &nbsp;If the session is greyed out and you are unable to select it, it has purposely been excluded from this tool by design. You will need to contact the Service Desk<br />
-                        &nbsp;or an appropriate support team for assistance.
-                    </p>`
+                         <p>
+                            &nbsp;If the session is greyed out and you are unable to select it, it has purposely been excluded from this tool by design. You will need to contact the Service Desk<br />
+                            &nbsp;or an appropriate support team for assistance.
+                        </p>`
             instructions.innerHTML += newinstructions;
             //console.info(newinstructions);
         };
@@ -1227,7 +1315,9 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 5th July 2021
         };
 
         // This function will restart the machines(s) for a user.
-        // It passes the Site Name, Delivery Controllers, port number, and an array of sessions to restart in the body.
+        // It passes the Site Name, Delivery Controllers, port number, an array of sessions to restart, and a boolean value caled Reset in the body.
+        // If Reset is false, the machine(s) are gracefully restarted.
+        // If Reset is true, the machine(s) are forecefully restarted.
         function restartMachines(sitename, deliverycontrollers, port, sessions, reset) {
             OpenStatusPopup()
             $("#statusmessage").append("<span>" + Get24hourTime() + ": Restarting machines...</br></span>");
@@ -1261,8 +1351,10 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 5th July 2021
             });
         };
 
-        // This function will logoff the session(s) for a user.
-        // It passes the Site Name, Delivery Controllers, port number, and an array of sessions to hide in the body.
+        // This function will hide or unhide the session(s) for a user.
+        // It passes the Site Name, Delivery Controllers, port number, an array of sessions to hide, and a boolean value caled Hide in the body.
+        // If Hide is true, the machine(s) are hidden.
+        // If Hide is false, the machine(s) are unhidden.
         function hideSessions(sitename, deliverycontrollers, port, sessions, hide) {
             OpenStatusPopup()
             $("#statusmessage").append("<span>" + Get24hourTime() + ": Hiding sessions...</br></span>");
@@ -1281,11 +1373,15 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 5th July 2021
                 success: function (result) {
                     console.info(result);
                     OpenStatusPopup()
-                    if (result.toLowerCase().indexOf("does not meet the criteria to be hidden") >= 0) {
-                        $("#statusmessage").append("<span>" + Get24hourTime() + ": " + result + "</br></span>");
-                    }
-                    else {
-                        $("#statusmessage").append("<span>" + Get24hourTime() + ": Sessions have been hidden. Refresh the page to verify.</br></span>");
+                    if (hide) {
+                        if (result.toLowerCase().indexOf("does not meet the criteria to be hidden") >= 0) {
+                            $("#statusmessage").append("<span>" + Get24hourTime() + ": " + result + "</br></span>");
+                        }
+                        else {
+                            $("#statusmessage").append("<span>" + Get24hourTime() + ": Sessions have been hidden. Refresh the page to verify.</br></span>");
+                        }
+                    } else {
+                        $("#statusmessage").append("<span>" + Get24hourTime() + ": Sessions have been unhidden. Refresh the page to verify.</br></span>");
                     }
                 }
             });
