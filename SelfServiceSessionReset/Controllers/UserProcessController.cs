@@ -1,6 +1,6 @@
-﻿// Version 1.3
+﻿// Version 1.4
 // Written by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th June 2020
-// Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 25th July 2021
+// Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 28th July 2021
 //
 using System;
 using System.Collections.Generic;
@@ -141,6 +141,10 @@ namespace SelfServiceSessionReset.Controllers
             {
                 result = "Exception occured in an attempt to connecct to " + remotehost + " to get all processes for " + username + ": " + e.Message;
             }
+            if (!string.IsNullOrEmpty(result))
+            {
+                Log.Debug(result);
+            }
             return userprocesses;
         }
 
@@ -240,7 +244,7 @@ namespace SelfServiceSessionReset.Controllers
         /// <returns></returns>
         private ExpandoObject GetPerfMonCounterInformation(string processName, int processId, string remotehost)
         {
-            string result = "";
+            string result = string.Empty;
             // Get the number of logical processors from the remote host
             int logicalprocessors = GetLogicalProcessors(remotehost);
             string processCounterName = "% Processor Time";
@@ -265,7 +269,10 @@ namespace SelfServiceSessionReset.Controllers
                 response.CpuUsagePercentage = Math.Round(counter.NextValue() / logicalprocessors, 2);
                 result = counter.InstanceName + " -  Cpu: " + response.CpuUsagePercentage;
             }
-
+            if (!string.IsNullOrEmpty(result))
+            {
+                Log.Debug(result);
+            }
             return response;
         }
 
@@ -296,7 +303,7 @@ namespace SelfServiceSessionReset.Controllers
         /// <returns></returns>
         private string GetInstanceNameForProcessId(string processName, int processId, string remotehost)
         {
-            string result = "";
+            string result = string.Empty;
             try
             {
                 // Create the appropriate PerformanceCounterCategory object.
@@ -323,6 +330,10 @@ namespace SelfServiceSessionReset.Controllers
             {
                 result = "Exception occured in an attempt to get the performce data of the instance for the " + processId + ": " + e.Message;
             }
+            if (!string.IsNullOrEmpty(result))
+            {
+                Log.Debug(result);
+            }
             return null;
         }
 
@@ -333,35 +344,51 @@ namespace SelfServiceSessionReset.Controllers
         /// <returns></returns>
         private int GetLogicalProcessors(string remotehost)
         {
-            ConnectionOptions connOptions = new ConnectionOptions();
-            connOptions.Impersonation = ImpersonationLevel.Impersonate;
-            connOptions.EnablePrivileges = true;
-            ManagementScope manScope = new ManagementScope(String.Format(@"\\{0}\ROOT\CIMV2", remotehost), connOptions);
-            manScope.Connect();
-
-            // Query the Win32_Processor for NumberOfLogicalProcessors
-            SelectQuery query = new SelectQuery("Select NumberOfLogicalProcessors from Win32_Processor");
-            ManagementObjectSearcher searcher = new ManagementObjectSearcher(manScope, query);
-            ManagementObjectCollection processorInformation = searcher.Get();
-
-            int result = 0;
-
-            foreach (ManagementObject obj in processorInformation)
+            string result = string.Empty;
+            int processorCount = 0;
+            try
             {
-                // Retrieve the number of logical processors
-                if (obj["NumberOfLogicalProcessors"] != null)
+                ConnectionOptions connOptions = new ConnectionOptions();
+                connOptions.Impersonation = ImpersonationLevel.Impersonate;
+                connOptions.EnablePrivileges = true;
+                ManagementScope manScope = new ManagementScope(String.Format(@"\\{0}\ROOT\CIMV2", remotehost), connOptions);
+                manScope.Connect();
+
+                // Query the Win32_Processor for NumberOfLogicalProcessors
+                SelectQuery query = new SelectQuery("Select NumberOfLogicalProcessors from Win32_Processor");
+                ManagementObjectSearcher searcher = new ManagementObjectSearcher(manScope, query);
+                ManagementObjectCollection processorInformation = searcher.Get();
+
+                foreach (ManagementObject obj in processorInformation)
                 {
-                    try
+                    // Retrieve the number of logical processors
+                    if (obj["NumberOfLogicalProcessors"] != null)
                     {
-                        int.TryParse(obj["NumberOfLogicalProcessors"].ToString(), out result);
+                        try
+                        {
+                            int.TryParse(obj["NumberOfLogicalProcessors"].ToString(), out processorCount);
+                            result = "The number of logical processors on " + remotehost + " is " + processorCount;
+                        }
+                        catch
+                        {
+                            result = "Unable to retrieve the number of logical processors on " + remotehost;
+                        }
                     }
-                    catch
+                    else
                     {
-                        //
+                        result = "Unable to find the number of logical processors on " + remotehost;
                     }
                 }
             }
-            return result;
+            catch (Exception e)
+            {
+                result = "Exception occured in an attempt to get the number of logical processors on " + remotehost + ": " + e.Message;
+            }
+            if (!string.IsNullOrEmpty(result))
+            {
+                Log.Debug(result);
+            }
+            return processorCount;
         }
 
         /// <summary>
@@ -388,6 +415,7 @@ namespace SelfServiceSessionReset.Controllers
                 ManagementObjectCollection processList = searcher.Get();
                 foreach (ManagementObject proc in processList)
                 {
+                    string procName = proc["Name"].ToString();
                     string procOwner = "None";
                     string[] Args = new string[] { "", "" };
                     int ReturnCode = Convert.ToInt32(proc.InvokeMethod("GetOwner", Args));
@@ -419,31 +447,31 @@ namespace SelfServiceSessionReset.Controllers
                         switch (returnvalue)
                         {
                             case 0:
-                                result = "Successful completion";
+                                result = "Successful termination of the " + procName + " process.";
                                 break;
                             case 2:
-                                result = "Access denied";
+                                result = "Access denied terminating the " + procName + " process.";
                                 break;
                             case 3:
-                                result = "Insufficient privilege";
+                                result = "Insufficient privileges to terminate the " + procName + " process.";
                                 break;
                             case 8:
-                                result = "Unknown failure";
+                                result = "Unknown failure terminating the " + procName + " process.";
                                 break;
                             case 9:
-                                result = "Path not found";
+                                result = "Path not found to the " + procName + " process.";
                                 break;
                             case 21:
-                                result = "Invalid parameter";
+                                result = "Invalid parameter supplied to terminate the " + procName + " process.";
                                 break;
                             default:
-                                result = "Terminate failed with error code " + outParams["ReturnValue"].ToString();
+                                result = "Attempt to terminate the " + procName + " process failed with error code " + outParams["ReturnValue"].ToString() + ".";
                                 break;
                         }
                     }
                     else
                     {
-                        result = "Cannot terminate this process because " + username + " is not the process owner";
+                        result = "Cannot terminate the " + procName + " process with a Process ID of " + processId + " because " + username + " is not the process owner.";
                     }
                 }
                 manScope = null;
@@ -451,8 +479,9 @@ namespace SelfServiceSessionReset.Controllers
             }
             catch (ManagementException e)
             {
-                result = "Exception occured in an attempt to terminate Process ID " + processId + ": " + e.Message;
+                result = "Exception occured in an attempt to terminate Process ID " + processId + " for " + username + ": " + e.Message;
             }
+            Log.Debug(result);
             return result;
         }
 
