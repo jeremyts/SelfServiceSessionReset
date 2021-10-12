@@ -1,6 +1,6 @@
-﻿// Version 1.7
+﻿// Version 1.8
 // Written by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th June 2020
-// Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 25th July 2021
+// Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th October 2021
 //
 using System;
 using System.Collections.Generic;
@@ -39,6 +39,11 @@ using System.Configuration;
 using System.Collections.Specialized;
 // Required for logging
 using Serilog;
+// Required for MailKit
+using MailKit.Net.Smtp;
+using MailKit;
+using MimeKit;
+using MailKit.Security;
 
 namespace SelfServiceSessionReset.Controllers
 {
@@ -59,7 +64,8 @@ namespace SelfServiceSessionReset.Controllers
         }
 
         /// <summary>
-        /// Get the configuration information from appSettings in the Web.config, skipping the serilog settings
+        /// Get the configuration information from appSettings in the Web.config.
+        /// Only include the settings that start with sssrt.
         /// </summary>
         private List<ConfigSettings> GetConfigurationSettings()
         {
@@ -68,16 +74,127 @@ namespace SelfServiceSessionReset.Controllers
 
             foreach (string s in appSettings.AllKeys)
             {
-                if (s.IndexOf("serilog", StringComparison.CurrentCultureIgnoreCase) < 0)
+                if (s.IndexOf("sssrt", StringComparison.CurrentCultureIgnoreCase) == 0)
                 {
                     ConfigurationSettings.Add(new ConfigSettings
                     {
-                        key = s,
+                        key = s.Split(':')[1],
                         value = appSettings.Get(s)
                     });
                 }
             }
             return ConfigurationSettings;
+        }
+
+        /// <summary>
+        /// Send SMTP Email using MailKit.
+        /// - It gets the congiguration from the Web.Config.
+        /// - It receives the subject, body and username as parameters. The username is simply used for the logging output returned.
+        /// </summary>
+        /// <param name="subject"></param>
+        /// <param name="body"></param>
+        /// <param name="username"></param>
+        /// <returns></returns>
+        private string SendMail(string subject, string body, string username)
+        {
+            StringBuilder stringBuilder = new StringBuilder();
+            string SenderName = string.Empty;
+            string SenderEmailAddress = string.Empty;
+            string RecipientEmailAddresses = string.Empty;
+            string SmtpServer = string.Empty;
+            int SmtpPort = 25;
+            string SmtpAuthUsername = string.Empty;
+            string SmtpAuthPassword = string.Empty;
+            string SubjectStartsWith = string.Empty;
+            string BodyTextStartsWith = string.Empty;
+            foreach (var pair in GetConfigurationSettings())
+            {
+                if (pair.key.IndexOf("SenderName", StringComparison.CurrentCultureIgnoreCase) == 0)
+                {
+                    SenderName = pair.value.ToString();
+                }
+                if (pair.key.IndexOf("SenderEmailAddress", StringComparison.CurrentCultureIgnoreCase) == 0)
+                {
+                    SenderEmailAddress = pair.value.ToString();
+                }
+                if (pair.key.IndexOf("RecipientEmailAddresses", StringComparison.CurrentCultureIgnoreCase) == 0)
+                {
+                    RecipientEmailAddresses = pair.value.ToString();
+                }
+                if (pair.key.IndexOf("SmtpServer", StringComparison.CurrentCultureIgnoreCase) == 0)
+                {
+                    SmtpServer = pair.value.ToString();
+                }
+                if (pair.key.IndexOf("SmtpPort", StringComparison.CurrentCultureIgnoreCase) == 0)
+                {
+                    int.TryParse(pair.value.ToString(), out SmtpPort);
+                }
+                if (pair.key.IndexOf("SmtpAuthUsername", StringComparison.CurrentCultureIgnoreCase) == 0)
+                {
+                    SmtpAuthUsername = pair.value.ToString();
+                }
+                if (pair.key.IndexOf("SmtpAuthPassword", StringComparison.CurrentCultureIgnoreCase) == 0)
+                {
+                    SmtpAuthPassword = pair.value.ToString();
+                }
+                if (pair.key.IndexOf("SubjectStartsWith", StringComparison.CurrentCultureIgnoreCase) == 0)
+                {
+                    SubjectStartsWith = pair.value.ToString();
+                }
+                if (pair.key.IndexOf("BodyTextStartsWith", StringComparison.CurrentCultureIgnoreCase) == 0)
+                {
+                    BodyTextStartsWith = pair.value.ToString();
+                }
+            }
+
+            MimeMessage message = new MimeMessage();
+            message.From.Add(new MailboxAddress(SenderName, SenderEmailAddress));
+
+            string[] ToMuliId = RecipientEmailAddresses.Split(',');
+            foreach (string ToEMailId in ToMuliId)
+            {
+                message.To.Add(MailboxAddress.Parse(ToEMailId));
+            }
+
+            if (!string.IsNullOrEmpty(SubjectStartsWith))
+            {
+                subject = SubjectStartsWith + " " + subject;
+            }
+            message.Subject = subject;
+
+            if (!string.IsNullOrEmpty(BodyTextStartsWith))
+            {
+                body = BodyTextStartsWith + " " + body;
+            }
+            message.Body = new TextPart("plain")
+            {
+                Text = @body
+            };
+
+            SmtpClient client = new SmtpClient();
+            try
+            {
+                client.Connect(SmtpServer, SmtpPort, SecureSocketOptions.Auto);
+                // Note: since we don't have an OAuth2 token, disable
+                // the XOAUTH2 authentication mechanism.
+                client.AuthenticationMechanisms.Remove("XOAUTH2");
+                if (!string.IsNullOrEmpty(SmtpAuthUsername) && !string.IsNullOrEmpty(SmtpAuthPassword))
+                {
+                    client.Authenticate(SmtpAuthUsername, SmtpAuthPassword);
+                }
+                client.Send(message);
+                stringBuilder.AppendLine("Email successfully sent on behalf of " + username + ".");
+            }
+            catch (Exception ex)
+            {
+                stringBuilder.AppendLine("Email failed to send on behalf of " + username + ": " + ex.Message);
+            }
+            finally
+            {
+                client.Disconnect(true);
+                client.Dispose();
+            }
+            return stringBuilder.ToString();
         }
 
         /// <summary>
@@ -895,13 +1012,27 @@ namespace SelfServiceSessionReset.Controllers
                             }
                             else
                             {
-                                stringBuilder.AppendLine("Failed to hide session on " + machinename);
+                                if (hide)
+                                {
+                                    stringBuilder.AppendLine("Failed to hide session on " + machinename);
+                                }
+                                else
+                                {
+                                    stringBuilder.AppendLine("Failed to unhide session on " + machinename);
+                                }
                             }
                         };
                     }
                     else
                     {
-                        stringBuilder.AppendLine("Successfully hidden session on " + machinename);
+                        if (hide)
+                        {
+                            stringBuilder.AppendLine("Successfully hidden session on " + machinename);
+                        }
+                        else
+                        {
+                            stringBuilder.AppendLine("Successfully unhidden session on " + machinename);
+                        }
                     }
                 }
                 catch (Exception e)
@@ -1093,31 +1224,63 @@ namespace SelfServiceSessionReset.Controllers
         [HttpDelete]
         public IHttpActionResult LogoffSessionsByMachineName([FromBody]CtxSessionsToAction logoffinfo)
         {
-            string result = string.Empty;
-            bool disconnect = false;
-            int.TryParse(logoffinfo.Port, out int intport);
-            string sitename = logoffinfo.SiteName;
-            string deliverycontroller = string.Empty;
-            string[] strArray = logoffinfo.DeliveryControllers.Split(',');
-            foreach (string strItem in strArray)
+            bool EnableThisMethod = false;
+            var pair = GetConfigurationSettings().FirstOrDefault(x => x.key == "EnableLogoffSessions");
+            if (pair != null)
             {
-                deliverycontroller = strItem;
-                if (XDPing(deliverycontroller, intport))
-                {
-                    break;
-                }
+                Boolean.TryParse(pair.value.ToString(), out EnableThisMethod);
             }
-            string username = GetLoggedOnUser();
-            string[] machinearray = logoffinfo.MachineNames.ToArray();
-            if (string.Join(",", logoffinfo.MachineNames).IndexOf(",") < 0)
+            string result = string.Empty;
+            if (EnableThisMethod)
             {
-                Log.Information("Logging off the session from " + string.Join(",", logoffinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+                bool SendEmail = false;
+                pair = GetConfigurationSettings().FirstOrDefault(x => x.key == "EnableEmailForLogoffSessions");
+                if (pair != null)
+                {
+                    Boolean.TryParse(pair.value.ToString(), out SendEmail);
+                }
+                bool disconnect = false;
+                int.TryParse(logoffinfo.Port, out int intport);
+                string sitename = logoffinfo.SiteName;
+                string deliverycontroller = string.Empty;
+                string[] strArray = logoffinfo.DeliveryControllers.Split(',');
+                foreach (string strItem in strArray)
+                {
+                    deliverycontroller = strItem;
+                    if (XDPing(deliverycontroller, intport))
+                    {
+                        break;
+                    }
+                }
+                string username = GetLoggedOnUser();
+                string[] machinearray = logoffinfo.MachineNames.ToArray();
+                if (string.Join(",", logoffinfo.MachineNames).IndexOf(",") < 0)
+                {
+                    string message = "Logging off the session from " + string.Join(",", logoffinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                    Log.Information(message);
+                    if (SendEmail)
+                    {
+                        SendMail("Logoff session for " + username, message, username);
+                    }
+                }
+                else
+                {
+                    string message = "Logging off the sessions from " + string.Join(",", logoffinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                    Log.Information(message);
+                    if (SendEmail)
+                    {
+                        SendMail("Logoff sessions for " + username, message, username);
+                    }
+                }
+                result += LogofforDisconnectSessions(sitename, deliverycontroller, username, machinearray, disconnect);
             }
             else
             {
-                Log.Information("Logging off the sessions from " + string.Join(",", logoffinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+                result += "The LogoffSessions method is disabled" + Environment.NewLine;
+                Log.Debug("The LogoffSessions method is disabled");
+                result += "The EnableLogoffSessions appSetting is set to False in the Web.config." + Environment.NewLine;
+                Log.Debug("The EnableLogoffSessions appSetting is set to False in the Web.config.");
             }
-            result += LogofforDisconnectSessions(sitename, deliverycontroller, username, machinearray, disconnect);
             return Ok(result);
         }
 
@@ -1141,6 +1304,12 @@ namespace SelfServiceSessionReset.Controllers
             string result = string.Empty;
             if (EnableThisMethod)
             {
+                bool SendEmail = false;
+                pair = GetConfigurationSettings().FirstOrDefault(x => x.key == "EnableEmailForDisconnectSessions");
+                if (pair != null)
+                {
+                    Boolean.TryParse(pair.value.ToString(), out SendEmail);
+                }
                 bool disconnect = true;
                 int.TryParse(disconnectinfo.Port, out int intport);
                 string sitename = disconnectinfo.SiteName;
@@ -1158,11 +1327,21 @@ namespace SelfServiceSessionReset.Controllers
                 string[] machinearray = disconnectinfo.MachineNames.ToArray();
                 if (string.Join(",", disconnectinfo.MachineNames).IndexOf(",") < 0)
                 {
-                    Log.Information("Disconnecting session from " + string.Join(",", disconnectinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+                    string message = "Disconnecting session from " + string.Join(",", disconnectinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                    Log.Information(message);
+                    if (SendEmail)
+                    {
+                        SendMail("Disconnect session for " + username, message, username);
+                    }
                 }
                 else
                 {
-                    Log.Information("Disconnecting sessions from " + string.Join(",", disconnectinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+                    string message = "Disconnecting sessions from " + string.Join(",", disconnectinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                    Log.Information(message);
+                    if (SendEmail)
+                    {
+                        SendMail("Disconnect sessions for " + username, message, username);
+                    }
                 }
                 result += (LogofforDisconnectSessions(sitename, deliverycontroller, username, machinearray, disconnect)) + Environment.NewLine;
             }
@@ -1208,6 +1387,12 @@ namespace SelfServiceSessionReset.Controllers
             string result = string.Empty;
             if (EnableThisMethod)
             {
+                bool SendEmail = false;
+                pair = GetConfigurationSettings().FirstOrDefault(x => x.key == "EnableEmailForMachineRestart");
+                if (pair != null)
+                {
+                    Boolean.TryParse(pair.value.ToString(), out SendEmail);
+                }
                 int.TryParse(restartinfo.Port, out int intport);
                 string sitename = restartinfo.SiteName;
                 string deliverycontroller = string.Empty;
@@ -1252,22 +1437,42 @@ namespace SelfServiceSessionReset.Controllers
                     {
                         if (string.Join(",", CriteriaMetList).IndexOf(",") < 0)
                         {
-                            Log.Information("Restarting machine " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+                            string message = "Restarting machine " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                            Log.Information(message);
+                            if (SendEmail)
+                            {
+                                SendMail("Restart machine for " + username, message, username);
+                            }
                         }
                         else
                         {
-                            Log.Information("Restarting machines " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+                            string message = "Restarting machines " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                            Log.Information(message);
+                            if (SendEmail)
+                            {
+                                SendMail("Restart machines for " + username, message, username);
+                            }
                         }
                     }
                     else
                     {
                         if (string.Join(",", CriteriaMetList).IndexOf(",") < 0)
                         {
-                            Log.Information("Forcefully restarting machine " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+                            string message = "Forcefully restarting machine " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                            Log.Information(message);
+                            if (SendEmail)
+                            {
+                                SendMail("Restart machine for " + username, message, username);
+                            }
                         }
                         else
                         {
-                            Log.Information("Forcefully restarting machines " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+                            string message = "Forcefully restarting machines " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                            Log.Information(message);
+                            if (SendEmail)
+                            {
+                                SendMail("Restart machines for " + username, message, username);
+                            }
                         }
                     }
                     result += (RestartMachines(sitename, deliverycontroller, CriteriaMetList.ToArray(), reset)) + Environment.NewLine;
@@ -1309,7 +1514,7 @@ namespace SelfServiceSessionReset.Controllers
         /// Each machine must meet the following criteria, which prevents users from hiding sessions unnecessarily.
         /// Registration State must be Unregistered
         /// OR
-        /// Power State must be Unknown, Off or TurningOff
+        /// Power State must be Unknown, Off, TurningOff or Suspended
         /// OR
         /// Maintenance Mode must be On.
         /// </summary>
@@ -1337,6 +1542,12 @@ namespace SelfServiceSessionReset.Controllers
             string result = string.Empty;
             if (EnableThisMethod)
             {
+                bool SendEmail = false;
+                pair = GetConfigurationSettings().FirstOrDefault(x => x.key == "EnableEmailForHideSessions");
+                if (pair != null)
+                {
+                    Boolean.TryParse(pair.value.ToString(), out SendEmail);
+                }
                 bool bypassCriteria = false;
                 if (hide)
                 {
@@ -1365,14 +1576,14 @@ namespace SelfServiceSessionReset.Controllers
                     // Create a new array by verifying that each machine meets the following criteria, which prevents users from hiding sessions unnecessarily. 
                     // - RegistrationState must be Unregistered
                     // OR
-                    // - PowerState must be Unknown, Off or TurningOff
+                    // - PowerState must be Unknown, Off, TurningOff or Suspended
                     // OR
                     // - MaintenanceMode must be On
                     List<string> CriteriaMetList = new List<string>();
                     List<string> CriteriaNotMetList = new List<string>();
                     foreach (string machinename in machinearray)
                     {
-                        CtxSession[] sessionArray = GetCurrentSessions(sitename, deliverycontroller, username).Where<CtxSession>(c => c.MachineName.Contains(machinename) && (c.RegistrationState == "Unregistered" || c.PowerState == "Unknown" || c.PowerState == "Off" || c.PowerState == "TurningOff" || c.MaintenanceMode == "On")).ToArray<CtxSession>();
+                        CtxSession[] sessionArray = GetCurrentSessions(sitename, deliverycontroller, username).Where<CtxSession>(c => c.MachineName.Contains(machinename) && (c.RegistrationState == "Unregistered" || c.PowerState == "Unknown" || c.PowerState == "Off" || c.PowerState == "TurningOff" || c.PowerState == "Suspended" || c.MaintenanceMode == "On")).ToArray<CtxSession>();
                         if (sessionArray.Length == 1)
                         {
                             CriteriaMetList.Add(machinename);
@@ -1390,11 +1601,21 @@ namespace SelfServiceSessionReset.Controllers
                     {
                         if (string.Join(",", CriteriaMetList).IndexOf(",") < 0)
                         {
-                            Log.Information("Hiding session from machine " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+                            string message = "Hiding session from machine " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                            Log.Information(message);
+                            if (SendEmail)
+                            {
+                                SendMail("Hide session for " + username, message, username);
+                            }
                         }
                         else
                         {
-                            Log.Information("Hiding sessions from machines " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+                            string message = "Hiding sessions from machines " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                            Log.Information(message);
+                            if (SendEmail)
+                            {
+                                SendMail("Hide sessions for " + username, message, username);
+                            }
                         }
                         result += (HideSessions(sitename, deliverycontroller, username, CriteriaMetList.ToArray(), hide)) + Environment.NewLine;
                     }
@@ -1416,11 +1637,21 @@ namespace SelfServiceSessionReset.Controllers
                     {
                         if (string.Join(",", hideinfo.MachineNames).IndexOf(",") < 0)
                         {
-                            Log.Information("Hiding session on machine " + string.Join(",", hideinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller bypassing the criteria checks.");
+                            string message = "Hiding session on machine " + string.Join(",", hideinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller bypassing the criteria checks.";
+                            Log.Information(message);
+                            if (SendEmail)
+                            {
+                                SendMail("Hide session for " + username, message, username);
+                            }
                         }
                         else
                         {
-                            Log.Information("Hiding sessions on machines " + string.Join(",", hideinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller bypassing the criteria checks.");
+                            string message = "Hiding sessions on machines " + string.Join(",", hideinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller bypassing the criteria checks.";
+                            Log.Information(message);
+                            if (SendEmail)
+                            {
+                                SendMail("Hide sessions for " + username, message, username);
+                            }
                         }
                         result += "Hiding session(s) bypassing the criteria checks" + Environment.NewLine;
                     }
@@ -1428,11 +1659,21 @@ namespace SelfServiceSessionReset.Controllers
                     {
                         if (string.Join(",", hideinfo.MachineNames).IndexOf(",") < 0)
                         {
-                            Log.Information("Unhiding session on machine " + string.Join(",", hideinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+                            string message = "Unhiding session on machine " + string.Join(",", hideinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                            Log.Information(message);
+                            if (SendEmail)
+                            {
+                                SendMail("Unhide session for " + username, message, username);
+                            }
                         }
                         else
                         {
-                            Log.Information("Unhiding sessions on machines " + string.Join(",", hideinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+                            string message = "Unhiding sessions on machines " + string.Join(",", hideinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                            Log.Information(message);
+                            if (SendEmail)
+                            {
+                                SendMail("Unhide sessions for " + username, message, username);
+                            }
                         }
                         result += "Unhiding session(s)" + Environment.NewLine;
                     }

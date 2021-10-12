@@ -493,8 +493,20 @@
         </member>
         <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.GetConfigurationSettings">
             <summary>
-            Get the configuration information from appSettings in the Web.config, skipping the serilog settings
+            Get the configuration information from appSettings in the Web.config.
+            Only include the settings that start with sssrt.
             </summary>
+        </member>
+        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.SendMail(System.String,System.String,System.String)">
+            <summary>
+            Send SMTP Email using MailKit.
+            - It gets the congiguration from the Web.Config.
+            - It receives the subject, body and username as parameters. The username is simply used for the logging output returned.
+            </summary>
+            <param name="subject"></param>
+            <param name="body"></param>
+            <param name="username"></param>
+            <returns></returns>
         </member>
         <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.GetLoggedOnUser">
             <summary>
@@ -686,7 +698,7 @@
             Each machine must meet the following criteria, which prevents users from hiding sessions unnecessarily.
             Registration State must be Unregistered
             OR
-            Power State must be Unknown, Off or TurningOff
+            Power State must be Unknown, Off, TurningOff or Suspended
             OR
             Maintenance Mode must be On.
             </summary>
@@ -705,8 +717,20 @@
         </member>
         <member name="M:SelfServiceSessionReset.Controllers.UserProcessController.GetConfigurationSettings">
             <summary>
-            Get the configuration information from appSettings in the Web.config, skipping the serilog settings
+            Get the configuration information from appSettings in the Web.config.
+            Only include the settings that start with sssrt.
             </summary>
+        </member>
+        <member name="M:SelfServiceSessionReset.Controllers.UserProcessController.SendMail(System.String,System.String,System.String)">
+            <summary>
+            Send SMTP Email using MailKit.
+            - It gets the congiguration from the Web.Config.
+            - It receives the subject, body and username as parameters. The username is simply used for the logging output returned.
+            </summary>
+            <param name="subject"></param>
+            <param name="body"></param>
+            <param name="username"></param>
+            <returns></returns>
         </member>
         <member name="M:SelfServiceSessionReset.Controllers.UserProcessController.GetLoggedOnUser">
             <summary>

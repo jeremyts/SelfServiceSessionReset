@@ -1,6 +1,6 @@
-﻿// Version 1.4
+﻿// Version 1.6
 // Written by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th June 2020
-// Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 28th July 2021
+// Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 12th October 2021
 //
 using System;
 using System.Collections.Generic;
@@ -26,6 +26,11 @@ using System.Configuration;
 using System.Collections.Specialized;
 // Required for logging
 using Serilog;
+// Required for MailKit
+using MailKit.Net.Smtp;
+using MailKit;
+using MimeKit;
+using MailKit.Security;
 
 namespace SelfServiceSessionReset.Controllers
 {
@@ -46,7 +51,8 @@ namespace SelfServiceSessionReset.Controllers
         }
 
         /// <summary>
-        /// Get the configuration information from appSettings in the Web.config, skipping the serilog settings
+        /// Get the configuration information from appSettings in the Web.config.
+        /// Only include the settings that start with sssrt.
         /// </summary>
         private List<ConfigSettings> GetConfigurationSettings()
         {
@@ -55,16 +61,127 @@ namespace SelfServiceSessionReset.Controllers
 
             foreach (string s in appSettings.AllKeys)
             {
-                if (s.IndexOf("serilog", StringComparison.CurrentCultureIgnoreCase) < 0)
+                if (s.IndexOf("sssrt", StringComparison.CurrentCultureIgnoreCase) == 0)
                 {
                     ConfigurationSettings.Add(new ConfigSettings
                     {
-                        key = s,
+                        key = s.Split(':')[1],
                         value = appSettings.Get(s)
                     });
                 }
             }
             return ConfigurationSettings;
+        }
+
+        /// <summary>
+        /// Send SMTP Email using MailKit.
+        /// - It gets the congiguration from the Web.Config.
+        /// - It receives the subject, body and username as parameters. The username is simply used for the logging output returned.
+        /// </summary>
+        /// <param name="subject"></param>
+        /// <param name="body"></param>
+        /// <param name="username"></param>
+        /// <returns></returns>
+        private string SendMail(string subject, string body, string username)
+        {
+            StringBuilder stringBuilder = new StringBuilder();
+            string SenderName = string.Empty;
+            string SenderEmailAddress = string.Empty;
+            string RecipientEmailAddresses = string.Empty;
+            string SmtpServer = string.Empty;
+            int SmtpPort = 25;
+            string SmtpAuthUsername = string.Empty;
+            string SmtpAuthPassword = string.Empty;
+            string SubjectStartsWith = string.Empty;
+            string BodyTextStartsWith = string.Empty;
+            foreach (var pair in GetConfigurationSettings())
+            {
+                if (pair.key.IndexOf("SenderName", StringComparison.CurrentCultureIgnoreCase) == 0)
+                {
+                    SenderName = pair.value.ToString();
+                }
+                if (pair.key.IndexOf("SenderEmailAddress", StringComparison.CurrentCultureIgnoreCase) == 0)
+                {
+                    SenderEmailAddress = pair.value.ToString();
+                }
+                if (pair.key.IndexOf("RecipientEmailAddresses", StringComparison.CurrentCultureIgnoreCase) == 0)
+                {
+                    RecipientEmailAddresses = pair.value.ToString();
+                }
+                if (pair.key.IndexOf("SmtpServer", StringComparison.CurrentCultureIgnoreCase) == 0)
+                {
+                    SmtpServer = pair.value.ToString();
+                }
+                if (pair.key.IndexOf("SmtpPort", StringComparison.CurrentCultureIgnoreCase) == 0)
+                {
+                    int.TryParse(pair.value.ToString(), out SmtpPort);
+                }
+                if (pair.key.IndexOf("SmtpAuthUsername", StringComparison.CurrentCultureIgnoreCase) == 0)
+                {
+                    SmtpAuthUsername = pair.value.ToString();
+                }
+                if (pair.key.IndexOf("SmtpAuthPassword", StringComparison.CurrentCultureIgnoreCase) == 0)
+                {
+                    SmtpAuthPassword = pair.value.ToString();
+                }
+                if (pair.key.IndexOf("SubjectStartsWith", StringComparison.CurrentCultureIgnoreCase) == 0)
+                {
+                    SubjectStartsWith = pair.value.ToString();
+                }
+                if (pair.key.IndexOf("BodyTextStartsWith", StringComparison.CurrentCultureIgnoreCase) == 0)
+                {
+                    BodyTextStartsWith = pair.value.ToString();
+                }
+            }
+
+            MimeMessage message = new MimeMessage();
+            message.From.Add(new MailboxAddress(SenderName, SenderEmailAddress));
+
+            string[] ToMuliId = RecipientEmailAddresses.Split(',');
+            foreach (string ToEMailId in ToMuliId)
+            {
+                message.To.Add(MailboxAddress.Parse(ToEMailId));
+            }
+
+            if (!string.IsNullOrEmpty(SubjectStartsWith))
+            {
+                subject = SubjectStartsWith + " " + subject;
+            }
+            message.Subject = subject;
+
+            if (!string.IsNullOrEmpty(BodyTextStartsWith))
+            {
+                body = BodyTextStartsWith + " " + body;
+            }
+            message.Body = new TextPart("plain")
+            {
+                Text = @body
+            };
+
+            SmtpClient client = new SmtpClient();
+            try
+            {
+                client.Connect(SmtpServer, SmtpPort, SecureSocketOptions.Auto);
+                // Note: since we don't have an OAuth2 token, disable
+                // the XOAUTH2 authentication mechanism.
+                client.AuthenticationMechanisms.Remove("XOAUTH2");
+                if (!string.IsNullOrEmpty(SmtpAuthUsername) && !string.IsNullOrEmpty(SmtpAuthPassword))
+                {
+                    client.Authenticate(SmtpAuthUsername, SmtpAuthPassword);
+                }
+                client.Send(message);
+                stringBuilder.AppendLine("Email successfully sent on behalf of " + username + ".");
+            }
+            catch (Exception ex)
+            {
+                stringBuilder.AppendLine("Email failed to send on behalf of " + username + ": " + ex.Message);
+            }
+            finally
+            {
+                client.Disconnect(true);
+                client.Dispose();
+            }
+            return stringBuilder.ToString();
         }
 
         /// <summary>
@@ -542,6 +659,13 @@ namespace SelfServiceSessionReset.Controllers
             }
             if (EnableThisMethod)
             {
+                bool SendEmail = false;
+                pair = GetConfigurationSettings().FirstOrDefault(x => x.key == "EnableEmailForTerminateProcesses");
+                if (pair != null)
+                {
+                    Boolean.TryParse(pair.value.ToString(), out SendEmail);
+                }
+                string message = string.Empty;
                 string username = GetLoggedOnUser();
                 string remotehost = terminateprocess.RemoteHost;
                 foreach (string pid in terminateprocess.PID)
@@ -549,7 +673,20 @@ namespace SelfServiceSessionReset.Controllers
                     int.TryParse(pid, out int intpid);
                     string result = TerminateRemoteProcess(remotehost, intpid, username);
                     stringBuilder.AppendLine("PID " + pid + " termination result:" + result);
-                    Log.Information("Terminating PID " + pid + " from remote host " + remotehost + " for " + username + ". Result: " + result);
+                    string localmessage = "Terminating PID " + pid + " from remote host " + remotehost + " for " + username + ". Result: " + result;
+                    Log.Information(localmessage);
+                    message = message + localmessage;
+                }
+                if (SendEmail && terminateprocess.PID.Count() > 0)
+                {
+                    if (terminateprocess.PID.Count() == 1)
+                    {
+                        SendMail("Terminate process for " + username, message, username);
+                    }
+                    else
+                    {
+                        SendMail("Terminate processes for " + username, message, username);
+                    }
                 }
             }
             else
