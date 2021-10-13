@@ -675,7 +675,14 @@ namespace SelfServiceSessionReset.Controllers
                     stringBuilder.AppendLine("PID " + pid + " termination result:" + result);
                     string localmessage = "Terminating PID " + pid + " from remote host " + remotehost + " for " + username + ". Result: " + result;
                     Log.Information(localmessage);
-                    message = message + localmessage;
+                    if (!string.IsNullOrEmpty(message))
+                    {
+                        message = message + Environment.NewLine + localmessage;
+                    }
+                    else
+                    {
+                        message = localmessage;
+                    }
                 }
                 if (SendEmail && terminateprocess.PID.Count() > 0)
                 {
