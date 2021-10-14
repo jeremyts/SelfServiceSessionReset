@@ -1062,10 +1062,12 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th October 2021
         function buildInstructions() {
             var instructions = document.getElementById('InstructionsSection');
             instructions.innerHTML = '';
-            var i = 1;
+            var i = 0;
             var newinstructions = `<p><b>Actions you can take:</b></p>`
-            newinstructions = newinstructions +
-                `<p>${i}) Log off an existing session, or sessions. This is the simplest action to take.</p>`
+            if (EnableLogoffSessions) {
+                newinstructions = newinstructions + `
+                            <p>${i = i + 1}) Log off an existing session, or sessions. This is the simplest action to take.</p>`
+            }
             if (EnableDisconnectSessions) {
                 newinstructions = newinstructions + `
                             <p>${i = i + 1}) Disconnect an existing session, or sessions. Handy if you left your workstation unlocked and unattended.</p>`
@@ -1074,9 +1076,13 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th October 2021
                 newinstructions = newinstructions + `
                             <p>${i = i + 1}) Get the processes for an existing session which will allow you view their status and terminate them.</p>`
             }
-            if (EnableGracefulMachineRestart) {
+            if (EnableGracefulMachineRestart && EnableLogoffSessions) {
                 newinstructions = newinstructions + `
                             <p>${i = i + 1}) Restart the machine when logoff does not work. This action is only supported on machines where Restart Supported is set to True.</p>`
+            }
+            if (EnableGracefulMachineRestart && !EnableLogoffSessions) {
+                newinstructions = newinstructions + `
+                            <p>${i = i + 1}) Restart the machine. This action is only supported on machines where Restart Supported is set to True.</p>`
             }
             if (EnableForcedMachineRestart) {
                 newinstructions = newinstructions + `
@@ -1087,7 +1093,7 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th October 2021
                                 &nbsp;&nbsp;&nbsp;&nbsp;session before you can start again.<br/>
                             </p >`
             }
-            if (EnableHideStuckSessions && !BypassCriteriaChecksForHideSessions && !EnableUnhideSessions && (EnableGracefulMachineRestart || EnableForcedMachineRestart)) {
+            if (EnableHideStuckSessions && EnableLogoffSessions && !BypassCriteriaChecksForHideSessions && !EnableUnhideSessions && (EnableGracefulMachineRestart || EnableForcedMachineRestart)) {
                 newinstructions = newinstructions + `
                             <p>${i = i + 1}) Hide a session when logoff and/or restart does not work. This can only be done when any of the following conditions are true:<br />
                                 &nbsp;&nbsp;&nbsp;&nbsp;1) Registration State is Unregistered<br />
@@ -1099,7 +1105,19 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th October 2021
                                 &nbsp;&nbsp;&nbsp;&nbsp;may not release any checked out licenses or locked files you may still have open in that session. Once the session is hidden, it is unable to be unhidden.
                             </p>`
             }
-            if (EnableHideStuckSessions && BypassCriteriaChecksForHideSessions && !EnableUnhideSessions && (EnableGracefulMachineRestart || EnableForcedMachineRestart)) {
+            if (EnableHideStuckSessions && !EnableLogoffSessions && !BypassCriteriaChecksForHideSessions && !EnableUnhideSessions && (EnableGracefulMachineRestart || EnableForcedMachineRestart)) {
+                newinstructions = newinstructions + `
+                            <p>${i = i + 1}) Hide a session when restart does not work. This can only be done when any of the following conditions are true:<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;1) Registration State is Unregistered<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;2) Power State is Off, Unknown, stuck in the process of TurningOff, or stuck in a Suspended state<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;3) Maintenance Mode is On<br />
+                            </p>
+                            <p>
+                                &nbsp;&nbsp;&nbsp;&nbsp;Hidden sessions are treated as though they do not exist; allowing you to start a new session. However, depending on the state of the session this action<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;may not release any checked out licenses or locked files you may still have open in that session. Once the session is hidden, it is unable to be unhidden.
+                            </p>`
+            }
+            if (EnableHideStuckSessions && EnableLogoffSessions && BypassCriteriaChecksForHideSessions && !EnableUnhideSessions && (EnableGracefulMachineRestart || EnableForcedMachineRestart)) {
                 newinstructions = newinstructions + `
                             <p>${i = i + 1}) Hide a session when logoff and/or restart does not work.</p>
                             <p>
@@ -1107,7 +1125,15 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th October 2021
                                 &nbsp;&nbsp;&nbsp;&nbsp;may not release any checked out licenses or locked files you may still have open in that session. Once the session is hidden, it is unable to be unhidden.
                             </p>`
             }
-            if (EnableHideStuckSessions && BypassCriteriaChecksForHideSessions && EnableUnhideSessions && (EnableGracefulMachineRestart || EnableForcedMachineRestart)) {
+            if (EnableHideStuckSessions && !EnableLogoffSessions && BypassCriteriaChecksForHideSessions && !EnableUnhideSessions && (EnableGracefulMachineRestart || EnableForcedMachineRestart)) {
+                newinstructions = newinstructions + `
+                            <p>${i = i + 1}) Hide a session when restart does not work.</p>
+                            <p>
+                                &nbsp;&nbsp;&nbsp;&nbsp;Hidden sessions are treated as though they do not exist; allowing you to start a new session. However, depending on the state of the session this action<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;may not release any checked out licenses or locked files you may still have open in that session. Once the session is hidden, it is unable to be unhidden.
+                            </p>`
+            }
+            if (EnableHideStuckSessions && EnableLogoffSessions && BypassCriteriaChecksForHideSessions && EnableUnhideSessions && (EnableGracefulMachineRestart || EnableForcedMachineRestart)) {
                 newinstructions = newinstructions + `
                             <p>${i = i + 1}) Hide a session when logoff and/or restart does not work.</p>
                             <p>
@@ -1116,7 +1142,16 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th October 2021
                             </p>
                             <p> ${ i = i + 1}) Unhide a session that was previously hidden by mistake or to allow the support teams to address an issue.</p >`
             }
-            if (EnableHideStuckSessions && !BypassCriteriaChecksForHideSessions && !EnableUnhideSessions && (!EnableGracefulMachineRestart && !EnableForcedMachineRestart)) {
+            if (EnableHideStuckSessions && !EnableLogoffSessions && BypassCriteriaChecksForHideSessions && EnableUnhideSessions && (EnableGracefulMachineRestart || EnableForcedMachineRestart)) {
+                newinstructions = newinstructions + `
+                            <p>${i = i + 1}) Hide a session when restart does not work.</p>
+                            <p>
+                                &nbsp;&nbsp;&nbsp;&nbsp;Hidden sessions are treated as though they do not exist; allowing you to start a new session. However, depending on the state of the session this action<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;may not release any checked out licenses or locked files you may still have open in that session.
+                            </p>
+                            <p> ${ i = i + 1}) Unhide a session that was previously hidden by mistake or to allow the support teams to address an issue.</p >`
+            }
+            if (EnableHideStuckSessions && EnableLogoffSessions && !BypassCriteriaChecksForHideSessions && !EnableUnhideSessions && (!EnableGracefulMachineRestart && !EnableForcedMachineRestart)) {
                 newinstructions = newinstructions + `
                             <p>${i = i + 1}) Hide a session when logoff does not work. This can only be done when any of the following conditions are true:<br />
                                 &nbsp;&nbsp;&nbsp;&nbsp;1) Registration State is Unregistered<br />
@@ -1128,7 +1163,19 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th October 2021
                                 &nbsp;&nbsp;&nbsp;&nbsp;may not release any checked out licenses or locked files you may still have open in that session. Once the session is hidden, it is unable to be unhidden.
                             </p>`
             }
-            if (EnableHideStuckSessions && BypassCriteriaChecksForHideSessions && !EnableUnhideSessions && (!EnableGracefulMachineRestart && !EnableForcedMachineRestart)) {
+            if (EnableHideStuckSessions && !EnableLogoffSessions && !BypassCriteriaChecksForHideSessions && !EnableUnhideSessions && (!EnableGracefulMachineRestart && !EnableForcedMachineRestart)) {
+                newinstructions = newinstructions + `
+                            <p>${i = i + 1}) Hide a session. This can only be done when any of the following conditions are true:<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;1) Registration State is Unregistered<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;2) Power State is Off, Unknown, stuck in the process of TurningOff, or stuck in a Suspended state<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;3) Maintenance Mode is On<br />
+                            </p>
+                            <p>
+                                &nbsp;&nbsp;&nbsp;&nbsp;Hidden sessions are treated as though they do not exist; allowing you to start a new session. However, depending on the state of the session this action<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;may not release any checked out licenses or locked files you may still have open in that session. Once the session is hidden, it is unable to be unhidden.
+                            </p>`
+            }
+            if (EnableHideStuckSessions && EnableLogoffSessions && BypassCriteriaChecksForHideSessions && !EnableUnhideSessions && (!EnableGracefulMachineRestart && !EnableForcedMachineRestart)) {
                 newinstructions = newinstructions + `
                             <p>${i = i + 1}) Hide a session when logoff does not work.</p>
                             <p>
@@ -1136,9 +1183,26 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th October 2021
                                 &nbsp;&nbsp;&nbsp;&nbsp;may not release any checked out licenses or locked files you may still have open in that session. Once the session is hidden, it is unable to be unhidden.
                             </p>`
             }
-            if (EnableHideStuckSessions && BypassCriteriaChecksForHideSessions && EnableUnhideSessions && (!EnableGracefulMachineRestart && !EnableForcedMachineRestart)) {
+            if (EnableHideStuckSessions && !EnableLogoffSessions && BypassCriteriaChecksForHideSessions && !EnableUnhideSessions && (!EnableGracefulMachineRestart && !EnableForcedMachineRestart)) {
+                newinstructions = newinstructions + `
+                            <p>${i = i + 1}) Hide a session.</p>
+                            <p>
+                                &nbsp;&nbsp;&nbsp;&nbsp;Hidden sessions are treated as though they do not exist; allowing you to start a new session. However, depending on the state of the session this action<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;may not release any checked out licenses or locked files you may still have open in that session. Once the session is hidden, it is unable to be unhidden.
+                            </p>`
+            }
+            if (EnableHideStuckSessions && EnableLogoffSessions && BypassCriteriaChecksForHideSessions && EnableUnhideSessions && (!EnableGracefulMachineRestart && !EnableForcedMachineRestart)) {
                 newinstructions = newinstructions + `
                             <p>${i = i + 1}) Hide a session when logoff does not work.</p>
+                            <p>
+                                &nbsp;&nbsp;&nbsp;&nbsp;Hidden sessions are treated as though they do not exist; allowing you to start a new session. However, depending on the state of the session this action<br />
+                                &nbsp;&nbsp;&nbsp;&nbsp;may not release any checked out licenses or locked files you may still have open in that session.
+                            </p>
+                            <p> ${ i = i + 1}) Unhide a session that was previously hidden by mistake or to allow the support teams to address an issue.</p >`
+            }
+            if (EnableHideStuckSessions && !EnableLogoffSessions && BypassCriteriaChecksForHideSessions && EnableUnhideSessions && (!EnableGracefulMachineRestart && !EnableForcedMachineRestart)) {
+                newinstructions = newinstructions + `
+                            <p>${i = i + 1}) Hide a session.</p>
                             <p>
                                 &nbsp;&nbsp;&nbsp;&nbsp;Hidden sessions are treated as though they do not exist; allowing you to start a new session. However, depending on the state of the session this action<br />
                                 &nbsp;&nbsp;&nbsp;&nbsp;may not release any checked out licenses or locked files you may still have open in that session.
