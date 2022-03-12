@@ -1202,9 +1202,20 @@ namespace SelfServiceSessionReset.Controllers
                 {
                     break;
                 }
+                else
+                {
+                    deliverycontroller = string.Empty;
+                }
             }
             string username = GetLoggedOnUser();
-            Log.Information("Getting sessions for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+            if (!string.IsNullOrEmpty(deliverycontroller))
+            {
+                Log.Information("Getting sessions for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+            }
+            else
+            {
+                Log.Information("No healthy Delivery Controllers can be found.");
+            }
             return GetCurrentSessions(sitename, deliverycontroller, username);
         }
 
@@ -1230,6 +1241,10 @@ namespace SelfServiceSessionReset.Controllers
                 if (XDPing(deliverycontroller, intport))
                 {
                     break;
+                }
+                else
+                {
+                    deliverycontroller = string.Empty;
                 }
             }
             string username = GetLoggedOnUser();
@@ -1275,6 +1290,10 @@ namespace SelfServiceSessionReset.Controllers
                     if (XDPing(deliverycontroller, intport))
                     {
                         break;
+                    }
+                    else
+                    {
+                        deliverycontroller = string.Empty;
                     }
                 }
                 string username = GetLoggedOnUser();
@@ -1346,6 +1365,10 @@ namespace SelfServiceSessionReset.Controllers
                     if (XDPing(deliverycontroller, intport))
                     {
                         break;
+                    }
+                    else
+                    {
+                        deliverycontroller = string.Empty;
                     }
                 }
                 string username = GetLoggedOnUser();
@@ -1428,6 +1451,10 @@ namespace SelfServiceSessionReset.Controllers
                     if (XDPing(deliverycontroller, intport))
                     {
                         break;
+                    }
+                    else
+                    {
+                        deliverycontroller = string.Empty;
                     }
                 }
                 string username = GetLoggedOnUser();
@@ -1592,6 +1619,10 @@ namespace SelfServiceSessionReset.Controllers
                     if (XDPing(deliverycontroller, intport))
                     {
                         break;
+                    }
+                    else
+                    {
+                        deliverycontroller = string.Empty;
                     }
                 }
                 string username = GetLoggedOnUser();
