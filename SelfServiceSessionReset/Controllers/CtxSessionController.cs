@@ -1,6 +1,6 @@
-﻿// Version 1.8
+﻿// Version 1.9
 // Written by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th June 2020
-// Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th October 2021
+// Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 12th March 2022
 //
 using System;
 using System.Collections.Generic;
@@ -461,7 +461,7 @@ namespace SelfServiceSessionReset.Controllers
                 }
                 if (CitrixRemotePowerShellSDKNotInstalled)
                 {
-                    stringBuilder.AppendLine("- The Citrix Remote PowerShell SDK Is not installed");
+                    stringBuilder.AppendLine("- The Citrix Remote PowerShell SDK is not installed");
                 }
             }
             Log.Debug(stringBuilder.ToString().Substring(0, stringBuilder.ToString().Length - 1));
@@ -533,134 +533,155 @@ namespace SelfServiceSessionReset.Controllers
             PowerShell ps = PowerShell.Create();
             ps.Runspace = runSpace;
             PSSnapInException psex;
-            runSpace.RunspaceConfiguration.AddPSSnapIn("Citrix.Broker.Admin.V2", out psex);
-            // Call the XDAuth method in the same Runspace.
-            XDAuth(runSpace, SiteName);
-
-            Pipeline pipeline = runSpace.CreatePipeline();
-            Command getSession = new Command("Get-BrokerSession");
-            getSession.Parameters.Add("AdminAddress", AdminAddress);
-            getSession.Parameters.Add("MaxRecordCount", 99999);
-            getSession.Parameters.Add("UserName", UserName);
-            pipeline.Commands.Add(getSession);
-
             try
             {
-                Collection<PSObject> Output = pipeline.Invoke();
+                runSpace.RunspaceConfiguration.AddPSSnapIn("Citrix.Broker.Admin.V2", out psex);
+                stringBuilder.AppendLine("Successfully added the Citrix.Broker.Admin.V2 snap-in to the runspace");
 
-                // Check if the collection is null or empty
-                bool IsCollectionNullOrEmpty = !(Output?.Any() ?? false);
+                // Call the XDAuth method in the same Runspace.
+                XDAuth(runSpace, SiteName);
 
-                if (IsCollectionNullOrEmpty == false)
+                Pipeline pipeline = runSpace.CreatePipeline();
+                Command getSession = new Command("Get-BrokerSession");
+                getSession.Parameters.Add("AdminAddress", AdminAddress);
+                getSession.Parameters.Add("MaxRecordCount", 99999);
+                getSession.Parameters.Add("UserName", UserName);
+                pipeline.Commands.Add(getSession);
+
+                try
                 {
-                    foreach (PSObject obj in Output)
+                    Collection<PSObject> Output = pipeline.Invoke();
+                    stringBuilder.AppendLine("Invoking the Get-BrokerSession cmdlet");
+                    // Check if the collection is null or empty
+                    bool IsCollectionNullOrEmpty = !(Output?.Any() ?? false);
+
+                    if (IsCollectionNullOrEmpty == false)
                     {
-                        string MachineName = string.Empty;
-                        string HostedMachineName = string.Empty;
-                        string SessionState = string.Empty;
-                        string StartTime = string.Empty;
-                        string SessionStateChangeTime = string.Empty;
-                        string OSType = string.Empty;
-                        string SessionSupport = string.Empty;
-                        string SessionId = string.Empty;
-                        string ApplicationState = string.Empty;
-                        string ApplicationStateLastChangeTime = string.Empty;
-                        string[] ApplicationsInUse = new string[] { };
-                        string IdleDuration = string.Empty;
-                        string IdleSince = string.Empty;
-                        string RestartSupported = string.Empty;
-                        string Hidden = string.Empty;
-                        string PowerState = string.Empty;
-                        string RegistrationState = string.Empty;
-                        string MaintenanceMode = string.Empty;
-                        bool Include = false;
-
-                        if (!(obj is null))
+                        foreach (PSObject obj in Output)
                         {
-                            MachineName = obj.Properties["MachineName"].Value.ToString();
-                            if (obj.Properties["HostedMachineName"].Value != null)
-                            {
-                                HostedMachineName = obj.Properties["HostedMachineName"].Value.ToString();
-                            }
-                            SessionState = obj.Properties["SessionState"].Value.ToString();
-                            if (obj.Properties["StartTime"].Value != null)
-                            {
-                                StartTime = obj.Properties["StartTime"].Value.ToString();
-                            }
-                            SessionStateChangeTime = obj.Properties["SessionStateChangeTime"].Value.ToString();
-                            OSType = obj.Properties["OSType"].Value.ToString();
-                            SessionSupport = obj.Properties["SessionSupport"].Value.ToString();
-                            SessionId = obj.Properties["SessionId"].Value.ToString();
-                            ApplicationState = obj.Properties["AppState"].Value.ToString();
-                            if (obj.Properties["AppState"].Value.ToString() == "NoApps")
-                            {
-                                ApplicationState = "Application not running";
-                            }
-                            ApplicationStateLastChangeTime = obj.Properties["AppStateLastChangeTime"].Value.ToString();
-                            // The ApplicationsInUse value is a System.String[] which is an array that can have a lower bound other than zero.
-                            // They are incompatible with a regular string[] array, so we for need to cast it to a System.Array and work with it that way.
-                            // Then we use LINQ (System.Linq namespace) to convert the System.Array to string[] and we get the desired outcome.
-                            Array arrApplications = (Array)obj.Properties["ApplicationsInUse"].Value;
-                            ApplicationsInUse = arrApplications.OfType<object>().Select(o => o.ToString()).ToArray();
-                            if (obj.Properties["IdleDuration"].Value != null)
-                            {
-                                IdleDuration = obj.Properties["IdleDuration"].Value.ToString();
-                            }
-                            if (obj.Properties["IdleSince"].Value != null)
-                            {
-                                IdleSince = obj.Properties["IdleSince"].Value.ToString();
-                            }
-                            RestartSupported = "False";
-                            if (OSType.IndexOf("Windows", StringComparison.CurrentCultureIgnoreCase) >= 0 && OSType.IndexOf("20", StringComparison.CurrentCultureIgnoreCase) < 0 && SessionSupport == "SingleSession")
-                            {
-                                RestartSupported = "True";
-                            }
-                            Hidden = obj.Properties["Hidden"].Value.ToString();
-                            PowerState = obj.Properties["PowerState"].Value.ToString();
+                            string MachineName = string.Empty;
+                            string HostedMachineName = string.Empty;
+                            string SessionState = string.Empty;
+                            string StartTime = string.Empty;
+                            string SessionStateChangeTime = string.Empty;
+                            string OSType = string.Empty;
+                            string SessionSupport = string.Empty;
+                            string SessionId = string.Empty;
+                            string ApplicationState = string.Empty;
+                            string ApplicationStateLastChangeTime = string.Empty;
+                            string[] ApplicationsInUse = new string[] { };
+                            string IdleDuration = string.Empty;
+                            string IdleSince = string.Empty;
+                            string RestartSupported = string.Empty;
+                            string Hidden = string.Empty;
+                            string PowerState = string.Empty;
+                            string RegistrationState = string.Empty;
+                            string MaintenanceMode = string.Empty;
+                            bool Include = false;
 
-                            // Include or Exclude specific delivery groups
-                            Include = IncludeDeliveryGroup(SiteName, obj.Properties["DesktopGroupName"].Value.ToString());
-
-                            // Retrieve an object of extra information of the session, such as RegistrationState, MaintenanceMode and PowerState of the machine.
-                            // Note that MaintenanceMode and PowerState can be supplied from either Get-BrokerSession or Get-BrokerMachine. However, I made the
-                            // decission to use Get-BrokerMachine as they are "machine" related.
-                            dynamic extraSessionInfo = GetSessionExtraInformation(runSpace, AdminAddress, MachineName);
-
-                            sessions.Add(new CtxSession
+                            if (!(obj is null))
                             {
-                                MachineName = MachineName,
-                                HostedMachineName = HostedMachineName,
-                                SessionState = SessionState,
-                                StartTime = StartTime,
-                                SessionStateChangeTime = SessionStateChangeTime,
-                                OSType = OSType,
-                                SessionSupport = SessionSupport,
-                                SessionId = SessionId,
-                                ApplicationState = ApplicationState,
-                                ApplicationStateLastChangeTime = ApplicationStateLastChangeTime,
-                                ApplicationsInUse = ApplicationsInUse,
-                                IdleDuration = IdleDuration,
-                                IdleSince = IdleSince,
-                                RestartSupported = RestartSupported,
-                                Hidden = Hidden,
-                                PowerState = extraSessionInfo.PowerState,
-                                RegistrationState = extraSessionInfo.RegistrationState,
-                                MaintenanceMode = extraSessionInfo.MaintenanceMode,
-                                Include = Include
-                            });
-                        }
-                    };
+                                MachineName = obj.Properties["MachineName"].Value.ToString();
+
+                                // Retrieve an object of extra information of the session, such as RegistrationState, MaintenanceMode, PowerState and OSType of the machine.
+                                // Note that MaintenanceMode, PowerState and OSType can be supplied from either Get-BrokerSession or Get-BrokerMachine. However, I made the
+                                // decission to use Get-BrokerMachine as they are "machine" related. I also found that if the machine is in an Unregistered state, the OSType
+                                // property returned from the Get-BrokerSession cmdlet will be null, so we then need to use the OSType property from the Get-BrokerMachine
+                                // cmdlet so that the data is accurate.
+                                dynamic extraSessionInfo = GetSessionExtraInformation(runSpace, AdminAddress, MachineName);
+
+                                if (obj.Properties["HostedMachineName"].Value != null)
+                                {
+                                    HostedMachineName = obj.Properties["HostedMachineName"].Value.ToString();
+                                }
+                                SessionState = obj.Properties["SessionState"].Value.ToString();
+                                if (obj.Properties["StartTime"].Value != null)
+                                {
+                                    StartTime = obj.Properties["StartTime"].Value.ToString();
+                                }
+                                SessionStateChangeTime = obj.Properties["SessionStateChangeTime"].Value.ToString();
+                                if (obj.Properties["OSType"].Value != null)
+                                {
+                                    OSType = obj.Properties["OSType"].Value.ToString();
+                                }
+                                else
+                                {
+                                    OSType = extraSessionInfo.OSType;
+                                }
+                                SessionSupport = obj.Properties["SessionSupport"].Value.ToString();
+                                SessionId = obj.Properties["SessionId"].Value.ToString();
+                                ApplicationState = obj.Properties["AppState"].Value.ToString();
+                                if (obj.Properties["AppState"].Value.ToString() == "NoApps")
+                                {
+                                    ApplicationState = "Application not running";
+                                }
+                                ApplicationStateLastChangeTime = obj.Properties["AppStateLastChangeTime"].Value.ToString();
+                                // The ApplicationsInUse value is a System.String[] which is an array that can have a lower bound other than zero.
+                                // They are incompatible with a regular string[] array, so we for need to cast it to a System.Array and work with it that way.
+                                // Then we use LINQ (System.Linq namespace) to convert the System.Array to string[] and we get the desired outcome.
+                                Array arrApplications = (Array)obj.Properties["ApplicationsInUse"].Value;
+                                ApplicationsInUse = arrApplications.OfType<object>().Select(o => o.ToString()).ToArray();
+                                if (obj.Properties["IdleDuration"].Value != null)
+                                {
+                                    IdleDuration = obj.Properties["IdleDuration"].Value.ToString();
+                                }
+                                if (obj.Properties["IdleSince"].Value != null)
+                                {
+                                    IdleSince = obj.Properties["IdleSince"].Value.ToString();
+                                }
+                                RestartSupported = "False";
+                                if (OSType.IndexOf("Windows", StringComparison.CurrentCultureIgnoreCase) >= 0 && OSType.IndexOf("20", StringComparison.CurrentCultureIgnoreCase) < 0 && SessionSupport == "SingleSession")
+                                {
+                                    RestartSupported = "True";
+                                }
+                                Hidden = obj.Properties["Hidden"].Value.ToString();
+                                PowerState = obj.Properties["PowerState"].Value.ToString();
+
+                                // Include or Exclude specific delivery groups
+                                Include = IncludeDeliveryGroup(SiteName, obj.Properties["DesktopGroupName"].Value.ToString());
+
+                                sessions.Add(new CtxSession
+                                {
+                                    MachineName = MachineName,
+                                    HostedMachineName = HostedMachineName,
+                                    SessionState = SessionState,
+                                    StartTime = StartTime,
+                                    SessionStateChangeTime = SessionStateChangeTime,
+                                    OSType = OSType,
+                                    SessionSupport = SessionSupport,
+                                    SessionId = SessionId,
+                                    ApplicationState = ApplicationState,
+                                    ApplicationStateLastChangeTime = ApplicationStateLastChangeTime,
+                                    ApplicationsInUse = ApplicationsInUse,
+                                    IdleDuration = IdleDuration,
+                                    IdleSince = IdleSince,
+                                    RestartSupported = RestartSupported,
+                                    Hidden = Hidden,
+                                    PowerState = extraSessionInfo.PowerState,
+                                    RegistrationState = extraSessionInfo.RegistrationState,
+                                    MaintenanceMode = extraSessionInfo.MaintenanceMode,
+                                    Include = Include
+                                });
+                            }
+                        };
+                    }
+                    pipeline.Dispose();
+                }
+                catch (Exception e)
+                {
+                    // These are errors caused by the Citrix Remote PowerShell SDK if the project is not built with the Platform target set to x64 instead of Any CPU.
+                    // - Citrix.Broker.Admin.SDK.SdkOperationException: Invalid admin server version '0' () - should be '2'
+                    // - Citrix.Broker.Admin.SDK.AdminConnectionException: Invalid admin server version '0' () - should be '2'
+                    // This was tested with both version 7.27.0.22 and 7.30.0.0.
+                    stringBuilder.AppendLine("ERROR: " + e.InnerException + " - " + e.Message + " - " + e.Source + " - " + e.StackTrace + " - " + e.TargetSite + " - " + e.Data);
                 }
             }
             catch (Exception e)
             {
-                // These are errors caused by the Citrix Remote PowerShell SDK if the project is not built with the Platform target set to x64 instead of Any CPU.
-                // - Citrix.Broker.Admin.SDK.SdkOperationException: Invalid admin server version '0' () - should be '2'
-                // - Citrix.Broker.Admin.SDK.AdminConnectionException: Invalid admin server version '0' () - should be '2'
-                // This was tested with both version 7.27.0.22 and 7.30.0.0.
+                Log.Information("Failed to load the Citrix.Broker.Admin.V2 snap-in");
                 stringBuilder.AppendLine("ERROR: " + e.InnerException + " - " + e.Message + " - " + e.Source + " - " + e.StackTrace + " - " + e.TargetSite + " - " + e.Data);
             }
-            pipeline.Dispose();
+            Log.Debug(stringBuilder.ToString().Substring(0, stringBuilder.ToString().Length - 1));
             runSpace.Close();
             return sessions;
         }
@@ -682,6 +703,7 @@ namespace SelfServiceSessionReset.Controllers
             response.RegistrationState = string.Empty;
             response.MaintenanceMode = string.Empty;
             response.PowerState = string.Empty;
+            response.OSType = string.Empty;
 
             Pipeline pipeline = runSpace.CreatePipeline();
             Command getMachine = new Command("Get-BrokerMachine");
@@ -691,6 +713,7 @@ namespace SelfServiceSessionReset.Controllers
             try
             {
                 Collection<PSObject> Output = pipeline.Invoke();
+                stringBuilder.AppendLine("Invoking the Get-BrokerMachine cmdlet");
 
                 // Check if the collection is null or empty
                 bool IsCollectionNullOrEmpty = !(Output?.Any() ?? false);
@@ -712,6 +735,7 @@ namespace SelfServiceSessionReset.Controllers
                                 response.MaintenanceMode = "On";
                             }
                             response.PowerState = obj.Properties["PowerState"].Value.ToString();
+                            response.OSType = obj.Properties["OSType"].Value.ToString();
                         }
                     };
                 }
@@ -720,6 +744,7 @@ namespace SelfServiceSessionReset.Controllers
             {
                 stringBuilder.AppendLine("ERROR: " + e.Message);
             }
+            Log.Debug(stringBuilder.ToString().Substring(0, stringBuilder.ToString().Length - 1));
             pipeline.Dispose();
             return response;
         }
