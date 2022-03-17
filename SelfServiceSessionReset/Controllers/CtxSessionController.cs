@@ -669,6 +669,10 @@ namespace SelfServiceSessionReset.Controllers
                 }
                 catch (Exception e)
                 {
+                    if (e.Message.IndexOf("Insufficient administrative privilege", StringComparison.CurrentCultureIgnoreCase) >= 0)
+                    {
+                        Log.Information("Insufficient administrative privilege to run the Get-BrokerSession cmdlet");
+                    }
                     // These are errors caused by the Citrix Remote PowerShell SDK if the project is not built with the Platform target set to x64 instead of Any CPU.
                     // - Citrix.Broker.Admin.SDK.SdkOperationException: Invalid admin server version '0' () - should be '2'
                     // - Citrix.Broker.Admin.SDK.AdminConnectionException: Invalid admin server version '0' () - should be '2'
