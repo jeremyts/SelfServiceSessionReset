@@ -1,3 +1,0 @@
-2022-03-17 21:24:46.194 +08:00 [INF] Getting sessions for APAC\saunja from the IOAPPS Site using the iormdc-cxd01.apac.ent.bhpbilliton.net Delivery Controller.
-2022-03-17 21:24:47.681 +08:00 [INF] Insufficient administrative privilege to run the Get-BrokerSession cmdlet
-2022-03-17 21:31:40.966 +08:00 [INF] Getting sessions for APAC\saunja from the IOAPPS Site using the iormdc-cxd01.apac.ent.bhpbilliton.net Delivery Controller.
