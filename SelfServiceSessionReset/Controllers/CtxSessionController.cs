@@ -241,6 +241,18 @@ namespace SelfServiceSessionReset.Controllers
         }
 
         /// <summary>
+        /// Get the Application Pool name and identity name for this web application.
+        /// This data is only used to assist with troubleshooting the installation.
+        /// </summary>
+        /// <returns></returns>
+        private string GetIISApplicationPoolDetails()
+        {
+            var AppPoolName = HttpContext.Current.Request.ServerVariables["APP_POOL_ID"];
+            var IdentityName = System.Security.Principal.WindowsIdentity.GetCurrent().Name;
+            return ("This Web Application is using the Application Pool " + AppPoolName + " running under the " + IdentityName + " identity");
+        }
+
+        /// <summary>
         /// Get the Site XDCredentials settings from the App_Data/CtxSites.xml file,
         /// set the Credentials and Authenticate.
         /// </summary>
@@ -672,6 +684,7 @@ namespace SelfServiceSessionReset.Controllers
                     if (e.Message.IndexOf("Insufficient administrative privilege", StringComparison.CurrentCultureIgnoreCase) >= 0)
                     {
                         Log.Information("Insufficient administrative privilege to run the Get-BrokerSession cmdlet");
+                        Log.Information(GetIISApplicationPoolDetails());
                     }
                     // These are errors caused by the Citrix Remote PowerShell SDK if the project is not built with the Platform target set to x64 instead of Any CPU.
                     // - Citrix.Broker.Admin.SDK.SdkOperationException: Invalid admin server version '0' () - should be '2'
