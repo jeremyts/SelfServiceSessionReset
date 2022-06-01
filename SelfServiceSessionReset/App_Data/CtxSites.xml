@@ -1,8 +1,8 @@
 ﻿<?xml version="1.0" encoding="utf-8" ?>
 <!--
-Version 1.3
+Version 1.4
 Written by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th June 2020
-Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 3rd July 2021
+Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 1st June 2022
 
 If data in any of the elements, such as the ClientSecret tag, uses specical characters, it will
 generate an exception when the XML file is read as it's considered invalid. For example, the '&'
@@ -23,6 +23,7 @@ Invalid character	Replace with
 		<DeliveryControllers>apaccxc01.jhouseconsulting.com,apaccxc02.jhouseconsulting.com</DeliveryControllers>
 		<Port>80</Port>
 		<Default></Default>
+		<UseUPN>false</UseUPN>
 		<IncludeDeliveryGroups></IncludeDeliveryGroups>
 		<ExcludeDeliveryGroups></ExcludeDeliveryGroups>
 		<ProfileType>CloudAPI</ProfileType>
@@ -36,6 +37,7 @@ Invalid character	Replace with
 		<DeliveryControllers>percxd01.jhouseconsulting.com,percxd02.jhouseconsulting.com</DeliveryControllers>
 		<Port>80</Port>
 		<Default></Default>
+		<UseUPN>false</UseUPN>
 		<IncludeDeliveryGroups></IncludeDeliveryGroups>
 		<ExcludeDeliveryGroups></ExcludeDeliveryGroups>
 		<ProfileType>OnPrem</ProfileType>
@@ -49,6 +51,7 @@ Invalid character	Replace with
 		<DeliveryControllers>sydcxd01.jhouseconsulting.com,sydcxd02.jhouseconsulting.com</DeliveryControllers>
 		<Port>80</Port>
 		<Default></Default>
+		<UseUPN>false</UseUPN>
 		<IncludeDeliveryGroups></IncludeDeliveryGroups>
 		<ExcludeDeliveryGroups></ExcludeDeliveryGroups>
 		<ProfileType>OnPrem</ProfileType>
@@ -62,6 +65,7 @@ Invalid character	Replace with
 		<DeliveryControllers>melcxd01.jhouseconsulting.com,melcxd02.jhouseconsulting.com</DeliveryControllers>
 		<Port>80</Port>
 		<Default></Default>
+		<UseUPN>false</UseUPN>
 		<IncludeDeliveryGroups></IncludeDeliveryGroups>
 		<ExcludeDeliveryGroups></ExcludeDeliveryGroups>
 		<ProfileType>OnPrem</ProfileType>

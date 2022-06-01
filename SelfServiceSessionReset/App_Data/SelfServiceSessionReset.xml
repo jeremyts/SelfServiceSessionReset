@@ -514,10 +514,23 @@
             </summary>
             <returns></returns>
         </member>
+        <member name="T:SelfServiceSessionReset.Controllers.CtxSessionController.ADUserProperties">
+            <summary>
+            A private class for the values returned by the GetADUserProperties method
+            </summary>
+        </member>
         <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.GetADUserProperties">
             <summary>
             Get user properties from Active Directory
             </summary>
+            <returns></returns>
+        </member>
+        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.UseUserUPN(System.String)">
+            <summary>
+            Get the UseUPN element from the Site Name node of the App_Data/CtxSites.xml file,
+            test its value and return a boolean true or false.
+            </summary>
+            <param name="SiteName"></param>
             <returns></returns>
         </member>
         <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.GetIISApplicationPoolDetails">
@@ -538,19 +551,24 @@
         </member>
         <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.XDPing(System.String,System.Int32)">
             <summary>
-            Performs an XDPing to make sure the Delivery Controller or Cloud Connector is in a healthy state
+            Performs an XDPing to make sure the Delivery Controller or Cloud Connector is in a healthy state.
+            It test whether the Broker service is reachable, listening and processing requests on its configured port.
+            We do this by issuing a blank HTTP POST requests to the Broker's Registrar service.
+            Including "Expect: 100-continue" in the body will ensure we receive a respose of "HTTP/1.1 100 Continue",
+            which is what we use to verify that it's in a healthy state.
             </summary>
             <param name="deliverycontroller"></param>
             <param name="port"></param>
             <returns></returns>
         </member>
-        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.GetCurrentSessions(System.String,System.String,System.String)">
+        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.GetCurrentSessions(System.String,System.String,System.String,System.Boolean)">
             <summary>
             Gets all current sessions for a user
             </summary>
             <param name="SiteName"></param>
             <param name="AdminAddress"></param>
             <param name="UserName"></param>
+            <param name="UseUPN"></param>
             <returns></returns>
         </member>
         <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.GetSessionExtraInformation(System.Management.Automation.Runspaces.Runspace,System.String,System.String)">
@@ -580,13 +598,14 @@
             <param name="DeliveryGroup"></param>
             <returns></returns>
         </member>
-        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.LogofforDisconnectSessions(System.String,System.String,System.String,System.String[],System.Boolean)">
+        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.LogofforDisconnectSessions(System.String,System.String,System.String,System.Boolean,System.String[],System.Boolean)">
             <summary>
             Logs off or diconnects all sepecified sessions.
             </summary>
             <param name="SiteName"></param>
             <param name="AdminAddress"></param>
             <param name="UserName"></param>
+            <param name="UseUPN"></param>
             <param name="arrMachineNames"></param>
             <param name="disconnect"></param>
             <returns></returns>
@@ -601,13 +620,14 @@
             <param name="reset"></param>
             <returns></returns>
         </member>
-        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.HideSessions(System.String,System.String,System.String,System.String[],System.Boolean)">
+        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.HideSessions(System.String,System.String,System.String,System.Boolean,System.String[],System.Boolean)">
             <summary>
             Hides all sepecified sessions.
             </summary>
             <param name="SiteName"></param>
             <param name="AdminAddress"></param>
             <param name="UserName"></param>
+            <param name="UseUPN"></param>
             <param name="arrMachineNames"></param>
             <param name="hide"></param>
             <returns></returns>

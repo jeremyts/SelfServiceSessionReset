@@ -1,8 +1,8 @@
 ﻿<!DOCTYPE html>
 <!--
-Version 1.8
+Version 1.9
 Written by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th June 2020
-Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th October 2021
+Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 1st June 2022
 -->
 <html>
 <head>
@@ -10,8 +10,20 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th October 2021
     <link rel='shortcut icon' type='image/x-icon' href='favicon.ico' />
     <link rel='icon' type='image/x-icon' href='favicon.ico' />
     <link href="Content/themes/base/jquery-ui.css" rel="stylesheet" />
-    <script src="Scripts/jquery-3.5.1.min.js"></script>
+    <script src="Scripts/jquery-3.6.0.min.js"></script>
     <script src="Scripts/jquery-ui-1.12.1.min.js"></script>
+    <!--The next 4 scripts are for the i18next framework, which provides plugins to detect the user language and load the translations
+        They are found here:
+        - https://github.com/i18next
+        - https://www.i18next.com/
+        You need to manually download from Github and add them to the Scripts folder, as they are not available via NuGet.
+    -->
+    <!--<script src="Scripts/i18next.min.js"></script>
+    <script src="Scripts/jquery-i18next.min.js"></script>
+    <script src="Scripts/i18nextBrowserLanguageDetector.min.js"></script>
+    <script src="Scripts/i18nextHttpBackend.min.js"></script>-->
+    <!--This script is customised for this project. It uses the i18next framework to detect and switch the language-->
+    <!--<script src="Scripts/i18n.js"></script>-->
     <title>Self-Service Session Reset</title>
 </head>
 <body>
@@ -154,112 +166,115 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th October 2021
                 float: none;
             }
     </style>
-    <header>
-        <div>
-            <h2>Self-Service Session Reset Tool</h2>
+    <div id="loader">Please be patient whilst the page is loading...</div>
+    <div id="content" style="display: none;">
+        <header>
+            <div>
+                <h2>Self-Service Session Reset Tool</h2>
+            </div>
+        </header>
+        <p><b id="welcome"></b></p>
+        <div class="content-selection">
+            Please select a Citrix environment:
+            <select id="selectEnvironment">
+            </select>
         </div>
-    </header>
-    <p><b id="welcome"></b></p>
-    <div class="content-selection">
-        Please select a Citrix environment:
-        <select id="selectEnvironment">
-        </select>
-    </div>
-    <div id="dialog">
-        <p id="statusmessage"></p>
-    </div>
-    <!--<br>
-    <label for="search-sessions-input">Search any data in the sessions table:</label>
-    <input id="search-sessions-input" class="form-control" type="text" />-->
-    <table id="sessionsTable" class="content-table">
-        <thead>
-            <tr>
-                <th>
-                    <div class="checkbox">
-                        <input type="checkbox" id="selectAllsessions">
-                        <label for="selectAllsessions"></label>
-                    </div>
-                </th>
-                <!--Add an EM space at the end of each description, which will be replaced with the ascending or descending arrow when selected-->
-                <th data-colname="MachineName" data-order="desc">Machine Name&#8195</th>
-                <th data-colname="SessionState" data-order="desc">Session State&#8195</th>
-                <th data-colname="StartTime" data-order="desc">Start Time&#8195</th>
-                <th data-colname="SessionStateChangeTime" data-order="desc">Session State<br />Change Time&#8195</th>
-                <th data-colname="ApplicationState" data-order="desc">Application State&#8195</th>
-                <th data-colname="ApplicationStateLastChangeTime" data-order="desc">Application State<br />Last Change Time&#8195</th>
-                <th data-colname="ApplicationsInUse" data-order="desc">Applications In Use&#8195</th>
-                <th data-colname="IdleDuration" data-order="desc">Idle Duration&#8195</th>
-                <th data-colname="IdleSince" data-order="desc">Idle Since&#8195</th>
-                <!--Hide this element by default and then we make it visible on document load depending on the appSettings-->
-                <th data-colname="RestartSupported" data-order="desc" style="display:none">Restart<br />Supported&#8195</th>
-                <!--Hide this element by default and then we make it visible on document load depending on the appSettings-->
-                <th data-colname="Hidden" data-order="desc" style="display:none">Hidden&#8195</th>
-                <th data-colname="MaintenanceMode" data-order="desc">Maintenance<br />Mode&#8195</th>
-                <th data-colname="PowerState" data-order="desc">Power<br />State&#8195</th>
-                <th data-colname="RegistrationState" data-order="desc">Registration<br />State&#8195</th>
-            </tr>
-        </thead>
-        <!-- Display this <tr> when no record found while search -->
-        <tr class='sessionnotfound'>
-            <td colspan='4'>No session found</td>
-        </tr>
-        <tbody id="sessionsTableBody">
-        </tbody>
-    </table>
-    <!--Hide this element by default and then we make it visible on document load depending on the appSettings-->
-    <div id="InstructionsSection" style="display:none">
-    </div>
-    <!--Hide this element by default and then we make it visible on document load depending on the appSettings-->
-    <button class="button" id="logoffSessions" style="display:none">Logoff Sessions</button>
-    <!--Hide this element by default and then we make it visible on document load depending on the appSettings-->
-    <button class="button" id="disconnectSessions" style="display:none">Disconnect Sessions</button>
-    <!--Hide this element by default and then we make it visible on document load depending on the appSettings-->
-    <button class="button" id="getProcesses" style="display:none">Get Processes</button>
-    <!--Hide this element by default and then we make it visible on document load depending on the appSettings-->
-    <button class="button" id="restartMachinesGracefully" style="display:none">Restart Machines</button>
-    <!--Hide this element by default and then we make it visible on document load depending on the appSettings-->
-    <button class="button" id="restartMachinesForcefully" style="display:none">Forcefully Restart Machines</button>
-    <!--Hide this element by default and then we make it visible on document load depending on the appSettings-->
-    <button class="button" id="hideSessions" style="display:none">Hide Stuck Sessions</button>
-    <!--Hide this element by default and then we make it visible on document load depending on the appSettings-->
-    <button class="button" id="unhideSessions" style="display:none">Unhide Sessions</button>
-    <!--Hide this element by default and then we make it visible on document load depending on the appSettings-->
-    <button class="button" id="terminateProcesses" style="display:none">Terminate Processes</button>
-    <div id="GetTerminateProcessesSection" style="display:none">
-        <br /><br />
-        <label for="search-processes-input">Search any data in the processes table:</label>
-        <input id="search-processes-input" class="form-control" type="text" />
-        <p>Values in the processes table are not refreshed and only captured at the time you select the Get Processes button.</p>
-        <table id="processesTable" class="content-table">
+        <div id="dialog">
+            <p id="statusmessage"></p>
+        </div>
+        <!--<br>
+        <label for="search-sessions-input">Search any data in the sessions table:</label>
+        <input id="search-sessions-input" class="form-control" type="text" />-->
+        <table id="sessionsTable" class="content-table">
             <thead>
                 <tr>
                     <th>
                         <div class="checkbox">
-                            <input type="checkbox" id="selectAllprocesses">
-                            <label for="selectAllprocesses"></label>
+                            <input type="checkbox" id="selectAllsessions">
+                            <label for="selectAllsessions"></label>
                         </div>
                     </th>
-                    <!--Add an EM space at the end of each description, which will be replaced with the ascending or descending arrow when selected--->
-                    <th data-colname="Name " data-order="desc">Name&#8195</th>
-                    <th data-colname="PID" data-order="desc">PID&#8195</th>
-                    <th data-colname="BytesPrivateMemorySize" data-order="desc">Private Memory<br />in Bytes&#8195</th>
-                    <th data-colname="BytesWorkingSet" data-order="desc">Working Set<br />in Bytes&#8195</th>
-                    <th data-colname="BytesPeakWorkingSet" data-order="desc">Peak Working Set<br />in Bytes&#8195</th>
-                    <th data-colname="BytesPagedMemorySize" data-order="desc">Commit Size<br />in Bytes&#8195</th>
-                    <th data-colname="CpuUsagePercentage" data-order="desc">CPU Usage<br />as a Percentage&#8195</th>
-                    <th data-colname="HandleCount" data-order="desc">Handle<br />Count&#8195</th>
-                    <th data-colname="Threads" data-order="desc">Threads&#8195</th>
-                    <th data-colname="CommandLine" data-order="desc">Command Line&#8195</th>
-                    <th data-colname="Description" data-order="desc">Description&#8195</th>
+                    <!--Add an EM space at the end of each description, which will be replaced with the ascending or descending arrow when selected-->
+                    <th data-colname="MachineName" data-order="desc">Machine Name&#8195</th>
+                    <th data-colname="SessionState" data-order="desc">Session State&#8195</th>
+                    <th data-colname="StartTime" data-order="desc">Start Time&#8195</th>
+                    <th data-colname="SessionStateChangeTime" data-order="desc">Session State<br />Change Time&#8195</th>
+                    <th data-colname="ApplicationState" data-order="desc">Application State&#8195</th>
+                    <th data-colname="ApplicationStateLastChangeTime" data-order="desc">Application State<br />Last Change Time&#8195</th>
+                    <th data-colname="ApplicationsInUse" data-order="desc">Applications In Use&#8195</th>
+                    <th data-colname="IdleDuration" data-order="desc">Idle Duration&#8195</th>
+                    <th data-colname="IdleSince" data-order="desc">Idle Since&#8195</th>
+                    <!--Hide this element by default and then we make it visible on document load depending on the appSettings-->
+                    <th data-colname="RestartSupported" data-order="desc" style="display:none">Restart<br />Supported&#8195</th>
+                    <!--Hide this element by default and then we make it visible on document load depending on the appSettings-->
+                    <th data-colname="Hidden" data-order="desc" style="display:none">Hidden&#8195</th>
+                    <th data-colname="MaintenanceMode" data-order="desc">Maintenance<br />Mode&#8195</th>
+                    <th data-colname="PowerState" data-order="desc">Power<br />State&#8195</th>
+                    <th data-colname="RegistrationState" data-order="desc">Registration<br />State&#8195</th>
                 </tr>
             </thead>
             <!-- Display this <tr> when no record found while search -->
-            <tr class='processnotfound'>
-                <td colspan='4'>No process found</td>
+            <tr class='sessionnotfound'>
+                <td colspan='4'>No session found</td>
             </tr>
-            <tbody id="processesTableBody">
+            <tbody id="sessionsTableBody">
             </tbody>
         </table>
+        <!--Hide this element by default and then we make it visible on document load depending on the appSettings-->
+        <div id="InstructionsSection" style="display:none">
+        </div>
+        <!--Hide this element by default and then we make it visible on document load depending on the appSettings-->
+        <button class="button" id="logoffSessions" style="display:none">Logoff Sessions</button>
+        <!--Hide this element by default and then we make it visible on document load depending on the appSettings-->
+        <button class="button" id="disconnectSessions" style="display:none">Disconnect Sessions</button>
+        <!--Hide this element by default and then we make it visible on document load depending on the appSettings-->
+        <button class="button" id="getProcesses" style="display:none">Get Processes</button>
+        <!--Hide this element by default and then we make it visible on document load depending on the appSettings-->
+        <button class="button" id="restartMachinesGracefully" style="display:none">Restart Machines</button>
+        <!--Hide this element by default and then we make it visible on document load depending on the appSettings-->
+        <button class="button" id="restartMachinesForcefully" style="display:none">Forcefully Restart Machines</button>
+        <!--Hide this element by default and then we make it visible on document load depending on the appSettings-->
+        <button class="button" id="hideSessions" style="display:none">Hide Stuck Sessions</button>
+        <!--Hide this element by default and then we make it visible on document load depending on the appSettings-->
+        <button class="button" id="unhideSessions" style="display:none">Unhide Sessions</button>
+        <!--Hide this element by default and then we make it visible on document load depending on the appSettings-->
+        <button class="button" id="terminateProcesses" style="display:none">Terminate Processes</button>
+        <div id="GetTerminateProcessesSection" style="display:none">
+            <br /><br />
+            <label for="search-processes-input">Search any data in the processes table:</label>
+            <input id="search-processes-input" class="form-control" type="text" />
+            <p>Values in the processes table are not refreshed and only captured at the time you select the Get Processes button.</p>
+            <table id="processesTable" class="content-table">
+                <thead>
+                    <tr>
+                        <th>
+                            <div class="checkbox">
+                                <input type="checkbox" id="selectAllprocesses">
+                                <label for="selectAllprocesses"></label>
+                            </div>
+                        </th>
+                        <!--Add an EM space at the end of each description, which will be replaced with the ascending or descending arrow when selected--->
+                        <th data-colname="Name " data-order="desc">Name&#8195</th>
+                        <th data-colname="PID" data-order="desc">PID&#8195</th>
+                        <th data-colname="BytesPrivateMemorySize" data-order="desc">Private Memory<br />in Bytes&#8195</th>
+                        <th data-colname="BytesWorkingSet" data-order="desc">Working Set<br />in Bytes&#8195</th>
+                        <th data-colname="BytesPeakWorkingSet" data-order="desc">Peak Working Set<br />in Bytes&#8195</th>
+                        <th data-colname="BytesPagedMemorySize" data-order="desc">Commit Size<br />in Bytes&#8195</th>
+                        <th data-colname="CpuUsagePercentage" data-order="desc">CPU Usage<br />as a Percentage&#8195</th>
+                        <th data-colname="HandleCount" data-order="desc">Handle<br />Count&#8195</th>
+                        <th data-colname="Threads" data-order="desc">Threads&#8195</th>
+                        <th data-colname="CommandLine" data-order="desc">Command Line&#8195</th>
+                        <th data-colname="Description" data-order="desc">Description&#8195</th>
+                    </tr>
+                </thead>
+                <!-- Display this <tr> when no record found while search -->
+                <tr class='processnotfound'>
+                    <td colspan='4'>No process found</td>
+                </tr>
+                <tbody id="processesTableBody">
+                </tbody>
+            </table>
+        </div>
     </div>
     <script type="text/javascript">
         // Create the global variables
@@ -281,6 +296,13 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th October 2021
         var EnableInstructions = true;
         var BypassCriteriaChecksForHideSessions = false;
         var EnableUnhideSessions = false;
+
+        //// Detect language as ISO-639 Language code and, ISO-3166 country code
+        //var language = window.navigator.language || window.navigator.userLanguage || "en";
+        //// Get primary two letter ISO-639 Language code standard
+        //// language = language.substring(0, 2);
+        //language = language.split("-")[0]
+        //console.info("Detected ISO-639 language:", language);
 
         function Get24hourTime() {
             var time = new Date();
@@ -328,6 +350,9 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th October 2021
             getCtxSiteList()
             // Remove the lock from the ready event
             $.holdReady(false)
+            // Hide the loading message and show the content
+            $('#loader').hide();
+            $('#content').show();
         }
 
         // Put a lock the ready event until the app settings and initial variables are set.
@@ -337,6 +362,7 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th October 2021
 
         // Initialise some tasks on document load
         $(document).ready(function () {
+            //console.info("Title:", i18n.t("appname-title"));
             if (EnableLogoffSessions) {
                 // Make the logoffSessions button visible
                 document.getElementById("logoffSessions").style.display = "";

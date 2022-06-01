@@ -1,6 +1,6 @@
-﻿// Version 1.9
+﻿// Version 1.10
 // Written by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th June 2020
-// Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 12th March 2022
+// Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 1st June 2022
 //
 using System;
 using System.Collections.Generic;
@@ -208,10 +208,19 @@ namespace SelfServiceSessionReset.Controllers
         }
 
         /// <summary>
+        /// A private class for the values returned by the GetADUserProperties method
+        /// </summary>
+        private class ADUserProperties
+        {
+            public string userPrincipalName { get; set; }
+            public string displayName { get; set; }
+        }
+
+        /// <summary>
         /// Get user properties from Active Directory
         /// </summary>
         /// <returns></returns>
-        private string GetADUserProperties()
+        private ADUserProperties GetADUserProperties()
         {
             // Get the current logged on username in the format of DOMAIN\\USERNAME
             string username = GetLoggedOnUser();
@@ -219,6 +228,7 @@ namespace SelfServiceSessionReset.Controllers
             string userdomain = username.Split('\\')[0];
             Thread.GetDomain().SetPrincipalPolicy(System.Security.Principal.PrincipalPolicy.WindowsPrincipal);
             System.Security.Principal.WindowsPrincipal principal = (System.Security.Principal.WindowsPrincipal)Thread.CurrentPrincipal;
+            string userPrincipalName = string.Empty;
             string displayName = string.Empty;
             string givenName = string.Empty;
             string surName = string.Empty;
@@ -227,17 +237,74 @@ namespace SelfServiceSessionReset.Controllers
                 System.DirectoryServices.AccountManagement.UserPrincipal up = System.DirectoryServices.AccountManagement.UserPrincipal.FindByIdentity(pc, username);
                 if (up != null)
                 {
+                    userPrincipalName = up.UserPrincipalName;
                     givenName = up.GivenName;
                     surName = up.Surname;
                     displayName = up.DisplayName;
                 }
             }
-            //return (givenName + " " + surName);
             String[] items = displayName.Split(',');
             if (items.Length == 2){
                 displayName = items[1].Trim() + " " + items[0].Trim();
             }
-            return (displayName);
+            ADUserProperties values = new ADUserProperties();
+            values.userPrincipalName = userPrincipalName;
+            values.displayName = displayName;
+            return values;
+        }
+
+        /// <summary>
+        /// Get the UseUPN element from the Site Name node of the App_Data/CtxSites.xml file,
+        /// test its value and return a boolean true or false.
+        /// </summary>
+        /// <param name="SiteName"></param>
+        /// <returns></returns>
+        private bool UseUserUPN(string SiteName)
+        {
+            bool UseUPN = false;
+            bool SiteFound = false;
+            StringBuilder stringBuilder = new StringBuilder();
+            stringBuilder.AppendLine("Getting the UseUPN element from the " + SiteName + " node of the App_Data/CtxSites.xml file...");
+
+            if (File.Exists(HttpContext.Current.Server.MapPath("~/App_Data/CtxSites.xml")))
+            {
+                stringBuilder.AppendLine("- Found the CtxSites.xml file");
+                XDocument doc = XDocument.Load(HttpContext.Current.Server.MapPath("~/App_Data/CtxSites.xml"));
+                foreach (XElement element in doc.Descendants("Sites").Descendants("Site"))
+                {
+                    if (element.Element("Name").Value.ToUpper().Equals(SiteName.ToUpper()))
+                    {
+                        SiteFound = true;
+                        stringBuilder.AppendLine("- " + SiteName + " site found");
+                        if (element.Element("UseUPN") != null)
+                        {
+                            if (!string.IsNullOrEmpty(element.Element("UseUPN").Value))
+                            {
+                                Boolean.TryParse(element.Element("UseUPN").Value, out UseUPN);
+                                stringBuilder.AppendLine("- UseUPN element was found and set to: " + element.Element("UseUPN").Value);
+                            }
+                            else
+                            {
+                                stringBuilder.AppendLine("- UseUPN element is not set");
+                            }
+                        }
+                        else
+                        {
+                            stringBuilder.AppendLine("- ERROR: UseUPN element was not found");
+                        }
+                    }
+                }
+                if (!SiteFound)
+                {
+                    stringBuilder.AppendLine("- ERROR: The " + SiteName + " site not found");
+                }
+            }
+            else
+            {
+                stringBuilder.AppendLine("- ERROR: the CtxSites.xml file was not found");
+            }
+            Log.Debug(stringBuilder.ToString().Substring(0, stringBuilder.ToString().Length - 1));
+            return UseUPN;
         }
 
         /// <summary>
@@ -275,6 +342,8 @@ namespace SelfServiceSessionReset.Controllers
 
             bool FileFound = false;
             bool SiteFound = false;
+
+            stringBuilder.AppendLine("- Getting the " + SiteName + " XDCredentials settings from the App_Data/CtxSites.xml file...");
 
             if (File.Exists(HttpContext.Current.Server.MapPath("~/App_Data/CtxSites.xml")))
             {
@@ -481,49 +550,101 @@ namespace SelfServiceSessionReset.Controllers
         }
 
         /// <summary>
-        /// Performs an XDPing to make sure the Delivery Controller or Cloud Connector is in a healthy state
+        /// Performs an XDPing to make sure the Delivery Controller or Cloud Connector is in a healthy state.
+        /// It test whether the Broker service is reachable, listening and processing requests on its configured port.
+        /// We do this by issuing a blank HTTP POST requests to the Broker's Registrar service.
+        /// Including "Expect: 100-continue" in the body will ensure we receive a respose of "HTTP/1.1 100 Continue",
+        /// which is what we use to verify that it's in a healthy state.
         /// </summary>
         /// <param name="deliverycontroller"></param>
         /// <param name="port"></param>
         /// <returns></returns>
         private bool XDPing(string deliverycontroller, int port)
         {
+            // This code has essentially been taken from the Citrix Health Assistant Tool and improved for reliability and troubleshooting purposes.
+            // I was able to reverse engineer the process by decompiling the VDAAssistant.Backend.dll, which is a component of the Citrix Health
+            // Assistant Tool.
             string service = "http://" + deliverycontroller + "/Citrix/CdsController/IRegistrar";
             string s = string.Format("POST {0} HTTP/1.1\r\nContent-Type: application/soap+xml; charset=utf-8\r\nHost: {1}:{2}\r\nContent-Length: 1\r\nExpect: 100-continue\r\nConnection: Close\r\n\r\n", (object)service, (object)deliverycontroller, (object)port);
             StringBuilder stringBuilder = new StringBuilder();
             stringBuilder.AppendLine("Attempting an XDPing against " + deliverycontroller + " on TCP port number " + port.ToString());
-            Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             bool listening = false;
             try
             {
-                socket.Connect(deliverycontroller, port);
+                Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                try
+                {
+                    socket.Connect(deliverycontroller, port);
+                    if (socket.Connected)
+                    {
+                        stringBuilder.AppendLine("- Socket connected");
+                        byte[] bytes = Encoding.ASCII.GetBytes(s);
+                        // Send the string as bytes.
+                        socket.Send(bytes, bytes.Length, SocketFlags.None);
+                        stringBuilder.AppendLine("- Sent the data");
+                        byte[] numArray = new byte[21];
+                        socket.ReceiveTimeout = 5000;
+                        socket.Receive(numArray);
+                        stringBuilder.AppendLine("- Received the following 21 byte array: " + BitConverter.ToString(numArray));
+                        // ASCII conversion - string from bytes
+                        string strASCII = Encoding.ASCII.GetString(numArray, 0, numArray.Length);
+                        // UTF conversion - String from bytes  
+                        string strUTF8 = Encoding.UTF8.GetString(numArray, 0, numArray.Length);
+                        stringBuilder.AppendLine("- Converting the byte array to an ASCII string we get the output between the quotes: \"" + strASCII + "\"");
+                        stringBuilder.AppendLine("- Converting the byte array to a UTF8 string we get the output between the quotes: \"" + strUTF8 + "\"");
+                        // Send an additional single byte of 32 (space) as 1 byte with no flags.
+                        socket.Send(new byte[1] { (byte)32 }, 1, SocketFlags.None);
+                        stringBuilder.AppendLine("- Sending the following string as a byte to help clear the connection: \"" + BitConverter.ToString(new byte[1] { 32 }) + "\"");
+                        if (strASCII.Trim().IndexOf("HTTP/1.1 100 Continue", StringComparison.CurrentCultureIgnoreCase) == 0)
+                        {
+                            listening = true;
+                            stringBuilder.AppendLine("- The service is listening and healthy");
+                        }
+                        else
+                        {
+                            stringBuilder.AppendLine("- The service is not listening");
+                        }
+                    }
+                    else
+                    {
+                        stringBuilder.AppendLine("- Socket failed to connect");
+                    }
+                }
+                catch (SocketException se)
+                {
+                    stringBuilder.AppendLine("- Failed to connect to service");
+                    stringBuilder.AppendLine("- ERROR: " + se.Message);
+                }
+                catch (Exception e)
+                {
+                    stringBuilder.AppendLine("- Failed with an unexpected error");
+                    stringBuilder.AppendLine("- ERROR: " + e.Message);
+                }
                 if (socket.Connected)
                 {
-                    stringBuilder.AppendLine("- Socket connected");
+                    try
+                    {
+                        socket.Close();
+                        stringBuilder.AppendLine("- Socket closed");
+                    }
+                    catch (SocketException se)
+                    {
+                        stringBuilder.AppendLine("- Failed to close the socket");
+                        stringBuilder.AppendLine("- ERROR: " + se.Message);
+                    }
+                    catch (Exception e)
+                    {
+                        stringBuilder.AppendLine("- Failed with an unexpected error");
+                        stringBuilder.AppendLine("- ERROR: " + e.Message);
+                    }
                 }
-                byte[] bytes = Encoding.ASCII.GetBytes(s);
-                socket.Send(bytes, bytes.Length, SocketFlags.None);
-                byte[] numArray = new byte[21];
-                socket.ReceiveTimeout = 5000;
-                socket.Receive(numArray);
-                string str = Encoding.ASCII.GetString(numArray);
-                socket.Send(new byte[1] { (byte)32 }, 1, SocketFlags.None);
-                socket.Close();
-                if (str == "HTTP/1.1 100 Continue")
-                {
-                    listening = true;
-                    stringBuilder.AppendLine("- Service is listening");
-                }
-                else
-                {
-                    stringBuilder.AppendLine("- Service is not listening");
-                }
+                socket.Dispose();
             }
-            catch
+            catch (Exception e)
             {
-                stringBuilder.AppendLine("- Failed to connect to service");
+                stringBuilder.AppendLine("- Failed to create a socket");
+                stringBuilder.AppendLine("- ERROR: " + e.Message);
             }
-            socket.Dispose();
             Log.Debug(stringBuilder.ToString().Substring(0, stringBuilder.ToString().Length-1));
             return listening;
         }
@@ -534,8 +655,9 @@ namespace SelfServiceSessionReset.Controllers
         /// <param name="SiteName"></param>
         /// <param name="AdminAddress"></param>
         /// <param name="UserName"></param>
+        /// <param name="UseUPN"></param>
         /// <returns></returns>
-        private List<CtxSession> GetCurrentSessions(string SiteName, string AdminAddress, string UserName)
+        private List<CtxSession> GetCurrentSessions(string SiteName, string AdminAddress, string UserName, bool UseUPN)
         {
             StringBuilder stringBuilder = new StringBuilder();
             List<CtxSession> sessions = new List<CtxSession> { };
@@ -557,7 +679,14 @@ namespace SelfServiceSessionReset.Controllers
                 Command getSession = new Command("Get-BrokerSession");
                 getSession.Parameters.Add("AdminAddress", AdminAddress);
                 getSession.Parameters.Add("MaxRecordCount", 99999);
-                getSession.Parameters.Add("UserName", UserName);
+                if (UseUPN == false)
+                {
+                    getSession.Parameters.Add("UserName", UserName);
+                }
+                else
+                {
+                    getSession.Parameters.Add("UserUPN", UserName);
+                }
                 pipeline.Commands.Add(getSession);
 
                 try
@@ -853,10 +982,11 @@ namespace SelfServiceSessionReset.Controllers
         /// <param name="SiteName"></param>
         /// <param name="AdminAddress"></param>
         /// <param name="UserName"></param>
+        /// <param name="UseUPN"></param>
         /// <param name="arrMachineNames"></param>
         /// <param name="disconnect"></param>
         /// <returns></returns>
-        private string LogofforDisconnectSessions(string SiteName, string AdminAddress, string UserName, string[] arrMachineNames, bool disconnect)
+        private string LogofforDisconnectSessions(string SiteName, string AdminAddress, string UserName, bool UseUPN, string[] arrMachineNames, bool disconnect)
         {
             StringBuilder stringBuilder = new StringBuilder();
             Runspace runSpace = RunspaceFactory.CreateRunspace();
@@ -873,7 +1003,14 @@ namespace SelfServiceSessionReset.Controllers
                 Command getSession = new Command("Get-BrokerSession");
                 getSession.Parameters.Add("AdminAddress", AdminAddress);
                 getSession.Parameters.Add("MachineName", "*\\" + machinename);
-                getSession.Parameters.Add("UserName", UserName);
+                if (UseUPN == false)
+                {
+                    getSession.Parameters.Add("UserName", UserName);
+                }
+                else
+                {
+                    getSession.Parameters.Add("UserUPN", UserName);
+                }
                 pipeline.Commands.Add(getSession);
                 if (disconnect == false)
                 {
@@ -1014,10 +1151,11 @@ namespace SelfServiceSessionReset.Controllers
         /// <param name="SiteName"></param>
         /// <param name="AdminAddress"></param>
         /// <param name="UserName"></param>
+        /// <param name="UseUPN"></param>
         /// <param name="arrMachineNames"></param>
         /// <param name="hide"></param>
         /// <returns></returns>
-        private string HideSessions(string SiteName, string AdminAddress, string UserName, string[] arrMachineNames, bool hide)
+        private string HideSessions(string SiteName, string AdminAddress, string UserName, bool UseUPN, string[] arrMachineNames, bool hide)
         {
             StringBuilder stringBuilder = new StringBuilder();
             Runspace runSpace = RunspaceFactory.CreateRunspace();
@@ -1035,7 +1173,14 @@ namespace SelfServiceSessionReset.Controllers
                 Command getSession = new Command("Get-BrokerSession");
                 getSession.Parameters.Add("AdminAddress", AdminAddress);
                 getSession.Parameters.Add("MachineName", "*\\" + machinename);
-                getSession.Parameters.Add("UserName", UserName);
+                if (UseUPN == false)
+                {
+                    getSession.Parameters.Add("UserName", UserName);
+                }
+                else
+                {
+                    getSession.Parameters.Add("UserUPN", UserName);
+                }
                 pipeline.Commands.Add(getSession);
                 Command setSession = new Command("Set-BrokerSession");
                 setSession.Parameters.Add("hidden", hide);
@@ -1192,7 +1337,7 @@ namespace SelfServiceSessionReset.Controllers
         [HttpGet]
         public IHttpActionResult GetDisplayName()
         {
-            string displayName = GetADUserProperties();
+            string displayName = GetADUserProperties().displayName;
             Log.Debug("DisplayName: " + displayName);
             return Ok(displayName);
         }
@@ -1224,16 +1369,22 @@ namespace SelfServiceSessionReset.Controllers
                     deliverycontroller = string.Empty;
                 }
             }
+            bool useupn = false;
             string username = GetLoggedOnUser();
+            if (UseUserUPN(sitename))
+            {
+                useupn = true;
+                username = GetADUserProperties().userPrincipalName;
+            }
             if (!string.IsNullOrEmpty(deliverycontroller))
             {
                 Log.Information("Getting sessions for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
             }
             else
             {
-                Log.Information("No healthy Delivery Controllers can be found.");
+                Log.Information("No healthy Delivery Controllers can be found. Enable Debug logging to get more information if needed.");
             }
-            return GetCurrentSessions(sitename, deliverycontroller, username);
+            return GetCurrentSessions(sitename, deliverycontroller, username, useupn);
         }
 
         // GET: api/CtxSession/GetSession?machinename=&sitename=&deliverycontrollers=&port=
@@ -1264,9 +1415,15 @@ namespace SelfServiceSessionReset.Controllers
                     deliverycontroller = string.Empty;
                 }
             }
+            bool useupn = false;
             string username = GetLoggedOnUser();
+            if (UseUserUPN(sitename))
+            {
+                useupn = true;
+                username = GetADUserProperties().userPrincipalName;
+            }
             Log.Information("Getting the session running on" + machinename + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
-            CtxSession[] sessionArray = GetCurrentSessions(sitename, deliverycontroller, username).Where<CtxSession>(c => c.MachineName.Contains(machinename)).ToArray<CtxSession>();
+            CtxSession[] sessionArray = GetCurrentSessions(sitename, deliverycontroller, username, useupn).Where<CtxSession>(c => c.MachineName.Contains(machinename)).ToArray<CtxSession>();
             return sessionArray;
         }
 
@@ -1313,7 +1470,13 @@ namespace SelfServiceSessionReset.Controllers
                         deliverycontroller = string.Empty;
                     }
                 }
+                bool useupn = false;
                 string username = GetLoggedOnUser();
+                if (UseUserUPN(sitename))
+                {
+                    useupn = true;
+                    username = GetADUserProperties().userPrincipalName;
+                }
                 string[] machinearray = logoffinfo.MachineNames.ToArray();
                 if (string.Join(",", logoffinfo.MachineNames).IndexOf(",") < 0)
                 {
@@ -1333,7 +1496,7 @@ namespace SelfServiceSessionReset.Controllers
                         SendMail("Logoff sessions for " + username, message, username);
                     }
                 }
-                result += LogofforDisconnectSessions(sitename, deliverycontroller, username, machinearray, disconnect);
+                result += LogofforDisconnectSessions(sitename, deliverycontroller, username, useupn, machinearray, disconnect);
             }
             else
             {
@@ -1388,7 +1551,13 @@ namespace SelfServiceSessionReset.Controllers
                         deliverycontroller = string.Empty;
                     }
                 }
+                bool useupn = false;
                 string username = GetLoggedOnUser();
+                if (UseUserUPN(sitename))
+                {
+                    useupn = true;
+                    username = GetADUserProperties().userPrincipalName;
+                }
                 string[] machinearray = disconnectinfo.MachineNames.ToArray();
                 if (string.Join(",", disconnectinfo.MachineNames).IndexOf(",") < 0)
                 {
@@ -1408,7 +1577,7 @@ namespace SelfServiceSessionReset.Controllers
                         SendMail("Disconnect sessions for " + username, message, username);
                     }
                 }
-                result += (LogofforDisconnectSessions(sitename, deliverycontroller, username, machinearray, disconnect)) + Environment.NewLine;
+                result += (LogofforDisconnectSessions(sitename, deliverycontroller, username, useupn, machinearray, disconnect)) + Environment.NewLine;
             }
             else
             {
@@ -1474,19 +1643,25 @@ namespace SelfServiceSessionReset.Controllers
                         deliverycontroller = string.Empty;
                     }
                 }
+                bool useupn = false;
                 string username = GetLoggedOnUser();
+                if (UseUserUPN(sitename))
+                {
+                    useupn = true;
+                    username = GetADUserProperties().userPrincipalName;
+                }
                 string[] machinearray = restartinfo.MachineNames.ToArray();
                 // Create a new array by verifying that each machine meets the following criteria.
                 // - OSType contains Windows
                 // AND
-                // - OSType does not contain 20 for Windows 2008 R2, 2012 R2, 2016, 2019, etc
+                // - OSType does not contain 20 for Windows 2008 R2, 2012 R2, 2016, 2019, 2022, etc
                 // AND
                 // - SessionSupport must be SingleSession
                 List<string> CriteriaMetList = new List<string>();
                 List<string> CriteriaNotMetList = new List<string>();
                 foreach (string machinename in machinearray)
                 {
-                    CtxSession[] sessionArray = GetCurrentSessions(sitename, deliverycontroller, username).Where<CtxSession>(c => c.MachineName.Contains(machinename) && c.OSType.Contains("Windows") && !c.OSType.Contains("20") && c.SessionSupport == "SingleSession").ToArray<CtxSession>();
+                    CtxSession[] sessionArray = GetCurrentSessions(sitename, deliverycontroller, username, useupn).Where<CtxSession>(c => c.MachineName.Contains(machinename) && c.OSType.Contains("Windows") && !c.OSType.Contains("20") && c.SessionSupport == "SingleSession").ToArray<CtxSession>();
                     if (sessionArray.Length == 1)
                     {
                         CriteriaMetList.Add(machinename);
@@ -1642,7 +1817,13 @@ namespace SelfServiceSessionReset.Controllers
                         deliverycontroller = string.Empty;
                     }
                 }
+                bool useupn = false;
                 string username = GetLoggedOnUser();
+                if (UseUserUPN(sitename))
+                {
+                    useupn = true;
+                    username = GetADUserProperties().userPrincipalName;
+                }
                 string[] machinearray = hideinfo.MachineNames.ToArray();
                 if (hide && !bypassCriteria)
                 {
@@ -1656,7 +1837,7 @@ namespace SelfServiceSessionReset.Controllers
                     List<string> CriteriaNotMetList = new List<string>();
                     foreach (string machinename in machinearray)
                     {
-                        CtxSession[] sessionArray = GetCurrentSessions(sitename, deliverycontroller, username).Where<CtxSession>(c => c.MachineName.Contains(machinename) && (c.RegistrationState == "Unregistered" || c.PowerState == "Unknown" || c.PowerState == "Off" || c.PowerState == "TurningOff" || c.PowerState == "Suspended" || c.MaintenanceMode == "On")).ToArray<CtxSession>();
+                        CtxSession[] sessionArray = GetCurrentSessions(sitename, deliverycontroller, username, useupn).Where<CtxSession>(c => c.MachineName.Contains(machinename) && (c.RegistrationState == "Unregistered" || c.PowerState == "Unknown" || c.PowerState == "Off" || c.PowerState == "TurningOff" || c.PowerState == "Suspended" || c.MaintenanceMode == "On")).ToArray<CtxSession>();
                         if (sessionArray.Length == 1)
                         {
                             CriteriaMetList.Add(machinename);
@@ -1690,7 +1871,7 @@ namespace SelfServiceSessionReset.Controllers
                                 SendMail("Hide sessions for " + username, message, username);
                             }
                         }
-                        result += (HideSessions(sitename, deliverycontroller, username, CriteriaMetList.ToArray(), hide)) + Environment.NewLine;
+                        result += (HideSessions(sitename, deliverycontroller, username, useupn, CriteriaMetList.ToArray(), hide)) + Environment.NewLine;
                     }
                     if (CriteriaNotMetList.ToArray().Length > 0)
                     {
@@ -1750,7 +1931,7 @@ namespace SelfServiceSessionReset.Controllers
                         }
                         result += "Unhiding session(s)" + Environment.NewLine;
                     }
-                    result += HideSessions(sitename, deliverycontroller, username, machinearray, hide);
+                    result += HideSessions(sitename, deliverycontroller, username, useupn, machinearray, hide);
                 }
             }
             else
