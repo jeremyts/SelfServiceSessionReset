@@ -561,14 +561,13 @@
             <param name="port"></param>
             <returns></returns>
         </member>
-        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.GetCurrentSessions(System.String,System.String,System.String,System.Boolean)">
+        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.GetCurrentSessions(System.String,System.String,System.String)">
             <summary>
             Gets all current sessions for a user
             </summary>
             <param name="SiteName"></param>
             <param name="AdminAddress"></param>
             <param name="UserName"></param>
-            <param name="UseUPN"></param>
             <returns></returns>
         </member>
         <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.GetSessionExtraInformation(System.Management.Automation.Runspaces.Runspace,System.String,System.String)">
@@ -598,14 +597,13 @@
             <param name="DeliveryGroup"></param>
             <returns></returns>
         </member>
-        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.LogofforDisconnectSessions(System.String,System.String,System.String,System.Boolean,System.String[],System.Boolean)">
+        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.LogofforDisconnectSessions(System.String,System.String,System.String,System.String[],System.Boolean)">
             <summary>
             Logs off or diconnects all sepecified sessions.
             </summary>
             <param name="SiteName"></param>
             <param name="AdminAddress"></param>
             <param name="UserName"></param>
-            <param name="UseUPN"></param>
             <param name="arrMachineNames"></param>
             <param name="disconnect"></param>
             <returns></returns>
@@ -620,14 +618,13 @@
             <param name="reset"></param>
             <returns></returns>
         </member>
-        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.HideSessions(System.String,System.String,System.String,System.Boolean,System.String[],System.Boolean)">
+        <member name="M:SelfServiceSessionReset.Controllers.CtxSessionController.HideSessions(System.String,System.String,System.String,System.String[],System.Boolean)">
             <summary>
             Hides all sepecified sessions.
             </summary>
             <param name="SiteName"></param>
             <param name="AdminAddress"></param>
             <param name="UserName"></param>
-            <param name="UseUPN"></param>
             <param name="arrMachineNames"></param>
             <param name="hide"></param>
             <returns></returns>

@@ -655,9 +655,8 @@ namespace SelfServiceSessionReset.Controllers
         /// <param name="SiteName"></param>
         /// <param name="AdminAddress"></param>
         /// <param name="UserName"></param>
-        /// <param name="UseUPN"></param>
         /// <returns></returns>
-        private List<CtxSession> GetCurrentSessions(string SiteName, string AdminAddress, string UserName, bool UseUPN)
+        private List<CtxSession> GetCurrentSessions(string SiteName, string AdminAddress, string UserName)
         {
             StringBuilder stringBuilder = new StringBuilder();
             List<CtxSession> sessions = new List<CtxSession> { };
@@ -679,7 +678,7 @@ namespace SelfServiceSessionReset.Controllers
                 Command getSession = new Command("Get-BrokerSession");
                 getSession.Parameters.Add("AdminAddress", AdminAddress);
                 getSession.Parameters.Add("MaxRecordCount", 99999);
-                if (UseUPN == false)
+                if (UserName.IndexOf("@") == -1)
                 {
                     getSession.Parameters.Add("UserName", UserName);
                 }
@@ -982,11 +981,10 @@ namespace SelfServiceSessionReset.Controllers
         /// <param name="SiteName"></param>
         /// <param name="AdminAddress"></param>
         /// <param name="UserName"></param>
-        /// <param name="UseUPN"></param>
         /// <param name="arrMachineNames"></param>
         /// <param name="disconnect"></param>
         /// <returns></returns>
-        private string LogofforDisconnectSessions(string SiteName, string AdminAddress, string UserName, bool UseUPN, string[] arrMachineNames, bool disconnect)
+        private string LogofforDisconnectSessions(string SiteName, string AdminAddress, string UserName, string[] arrMachineNames, bool disconnect)
         {
             StringBuilder stringBuilder = new StringBuilder();
             Runspace runSpace = RunspaceFactory.CreateRunspace();
@@ -1003,7 +1001,7 @@ namespace SelfServiceSessionReset.Controllers
                 Command getSession = new Command("Get-BrokerSession");
                 getSession.Parameters.Add("AdminAddress", AdminAddress);
                 getSession.Parameters.Add("MachineName", "*\\" + machinename);
-                if (UseUPN == false)
+                if (UserName.IndexOf("@") == -1)
                 {
                     getSession.Parameters.Add("UserName", UserName);
                 }
@@ -1151,11 +1149,10 @@ namespace SelfServiceSessionReset.Controllers
         /// <param name="SiteName"></param>
         /// <param name="AdminAddress"></param>
         /// <param name="UserName"></param>
-        /// <param name="UseUPN"></param>
         /// <param name="arrMachineNames"></param>
         /// <param name="hide"></param>
         /// <returns></returns>
-        private string HideSessions(string SiteName, string AdminAddress, string UserName, bool UseUPN, string[] arrMachineNames, bool hide)
+        private string HideSessions(string SiteName, string AdminAddress, string UserName,string[] arrMachineNames, bool hide)
         {
             StringBuilder stringBuilder = new StringBuilder();
             Runspace runSpace = RunspaceFactory.CreateRunspace();
@@ -1173,7 +1170,7 @@ namespace SelfServiceSessionReset.Controllers
                 Command getSession = new Command("Get-BrokerSession");
                 getSession.Parameters.Add("AdminAddress", AdminAddress);
                 getSession.Parameters.Add("MachineName", "*\\" + machinename);
-                if (UseUPN == false)
+                if (UserName.IndexOf("@") == -1)
                 {
                     getSession.Parameters.Add("UserName", UserName);
                 }
@@ -1369,11 +1366,9 @@ namespace SelfServiceSessionReset.Controllers
                     deliverycontroller = string.Empty;
                 }
             }
-            bool useupn = false;
             string username = GetLoggedOnUser();
             if (UseUserUPN(sitename))
             {
-                useupn = true;
                 username = GetADUserProperties().userPrincipalName;
             }
             if (!string.IsNullOrEmpty(deliverycontroller))
@@ -1384,7 +1379,7 @@ namespace SelfServiceSessionReset.Controllers
             {
                 Log.Information("No healthy Delivery Controllers can be found. Enable Debug logging to get more information if needed.");
             }
-            return GetCurrentSessions(sitename, deliverycontroller, username, useupn);
+            return GetCurrentSessions(sitename, deliverycontroller, username);
         }
 
         // GET: api/CtxSession/GetSession?machinename=&sitename=&deliverycontrollers=&port=
@@ -1415,15 +1410,13 @@ namespace SelfServiceSessionReset.Controllers
                     deliverycontroller = string.Empty;
                 }
             }
-            bool useupn = false;
             string username = GetLoggedOnUser();
             if (UseUserUPN(sitename))
             {
-                useupn = true;
                 username = GetADUserProperties().userPrincipalName;
             }
             Log.Information("Getting the session running on" + machinename + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
-            CtxSession[] sessionArray = GetCurrentSessions(sitename, deliverycontroller, username, useupn).Where<CtxSession>(c => c.MachineName.Contains(machinename)).ToArray<CtxSession>();
+            CtxSession[] sessionArray = GetCurrentSessions(sitename, deliverycontroller, username).Where<CtxSession>(c => c.MachineName.Contains(machinename)).ToArray<CtxSession>();
             return sessionArray;
         }
 
@@ -1470,11 +1463,9 @@ namespace SelfServiceSessionReset.Controllers
                         deliverycontroller = string.Empty;
                     }
                 }
-                bool useupn = false;
                 string username = GetLoggedOnUser();
                 if (UseUserUPN(sitename))
                 {
-                    useupn = true;
                     username = GetADUserProperties().userPrincipalName;
                 }
                 string[] machinearray = logoffinfo.MachineNames.ToArray();
@@ -1496,7 +1487,7 @@ namespace SelfServiceSessionReset.Controllers
                         SendMail("Logoff sessions for " + username, message, username);
                     }
                 }
-                result += LogofforDisconnectSessions(sitename, deliverycontroller, username, useupn, machinearray, disconnect);
+                result += LogofforDisconnectSessions(sitename, deliverycontroller, username, machinearray, disconnect);
             }
             else
             {
@@ -1551,11 +1542,9 @@ namespace SelfServiceSessionReset.Controllers
                         deliverycontroller = string.Empty;
                     }
                 }
-                bool useupn = false;
                 string username = GetLoggedOnUser();
                 if (UseUserUPN(sitename))
                 {
-                    useupn = true;
                     username = GetADUserProperties().userPrincipalName;
                 }
                 string[] machinearray = disconnectinfo.MachineNames.ToArray();
@@ -1577,7 +1566,7 @@ namespace SelfServiceSessionReset.Controllers
                         SendMail("Disconnect sessions for " + username, message, username);
                     }
                 }
-                result += (LogofforDisconnectSessions(sitename, deliverycontroller, username, useupn, machinearray, disconnect)) + Environment.NewLine;
+                result += (LogofforDisconnectSessions(sitename, deliverycontroller, username, machinearray, disconnect)) + Environment.NewLine;
             }
             else
             {
@@ -1643,11 +1632,9 @@ namespace SelfServiceSessionReset.Controllers
                         deliverycontroller = string.Empty;
                     }
                 }
-                bool useupn = false;
                 string username = GetLoggedOnUser();
                 if (UseUserUPN(sitename))
                 {
-                    useupn = true;
                     username = GetADUserProperties().userPrincipalName;
                 }
                 string[] machinearray = restartinfo.MachineNames.ToArray();
@@ -1661,7 +1648,7 @@ namespace SelfServiceSessionReset.Controllers
                 List<string> CriteriaNotMetList = new List<string>();
                 foreach (string machinename in machinearray)
                 {
-                    CtxSession[] sessionArray = GetCurrentSessions(sitename, deliverycontroller, username, useupn).Where<CtxSession>(c => c.MachineName.Contains(machinename) && c.OSType.Contains("Windows") && !c.OSType.Contains("20") && c.SessionSupport == "SingleSession").ToArray<CtxSession>();
+                    CtxSession[] sessionArray = GetCurrentSessions(sitename, deliverycontroller, username).Where<CtxSession>(c => c.MachineName.Contains(machinename) && c.OSType.Contains("Windows") && !c.OSType.Contains("20") && c.SessionSupport == "SingleSession").ToArray<CtxSession>();
                     if (sessionArray.Length == 1)
                     {
                         CriteriaMetList.Add(machinename);
@@ -1817,11 +1804,9 @@ namespace SelfServiceSessionReset.Controllers
                         deliverycontroller = string.Empty;
                     }
                 }
-                bool useupn = false;
                 string username = GetLoggedOnUser();
                 if (UseUserUPN(sitename))
                 {
-                    useupn = true;
                     username = GetADUserProperties().userPrincipalName;
                 }
                 string[] machinearray = hideinfo.MachineNames.ToArray();
@@ -1837,7 +1822,7 @@ namespace SelfServiceSessionReset.Controllers
                     List<string> CriteriaNotMetList = new List<string>();
                     foreach (string machinename in machinearray)
                     {
-                        CtxSession[] sessionArray = GetCurrentSessions(sitename, deliverycontroller, username, useupn).Where<CtxSession>(c => c.MachineName.Contains(machinename) && (c.RegistrationState == "Unregistered" || c.PowerState == "Unknown" || c.PowerState == "Off" || c.PowerState == "TurningOff" || c.PowerState == "Suspended" || c.MaintenanceMode == "On")).ToArray<CtxSession>();
+                        CtxSession[] sessionArray = GetCurrentSessions(sitename, deliverycontroller, username).Where<CtxSession>(c => c.MachineName.Contains(machinename) && (c.RegistrationState == "Unregistered" || c.PowerState == "Unknown" || c.PowerState == "Off" || c.PowerState == "TurningOff" || c.PowerState == "Suspended" || c.MaintenanceMode == "On")).ToArray<CtxSession>();
                         if (sessionArray.Length == 1)
                         {
                             CriteriaMetList.Add(machinename);
@@ -1871,7 +1856,7 @@ namespace SelfServiceSessionReset.Controllers
                                 SendMail("Hide sessions for " + username, message, username);
                             }
                         }
-                        result += (HideSessions(sitename, deliverycontroller, username, useupn, CriteriaMetList.ToArray(), hide)) + Environment.NewLine;
+                        result += (HideSessions(sitename, deliverycontroller, username, CriteriaMetList.ToArray(), hide)) + Environment.NewLine;
                     }
                     if (CriteriaNotMetList.ToArray().Length > 0)
                     {
@@ -1931,7 +1916,7 @@ namespace SelfServiceSessionReset.Controllers
                         }
                         result += "Unhiding session(s)" + Environment.NewLine;
                     }
-                    result += HideSessions(sitename, deliverycontroller, username, useupn, machinearray, hide);
+                    result += HideSessions(sitename, deliverycontroller, username, machinearray, hide);
                 }
             }
             else
