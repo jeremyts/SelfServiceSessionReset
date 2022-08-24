@@ -1,6 +1,6 @@
-﻿// Version 1.10
+﻿// Version 1.11
 // Written by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th June 2020
-// Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 1st June 2022
+// Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 24th August 2022
 //
 using System;
 using System.Collections.Generic;
@@ -69,6 +69,9 @@ namespace SelfServiceSessionReset.Controllers
         /// </summary>
         private List<ConfigSettings> GetConfigurationSettings()
         {
+            // Always read from the disk to get the latest setting
+            ConfigurationManager.RefreshSection("appSettings");
+
             List<ConfigSettings> ConfigurationSettings = new List<ConfigSettings> { };
             NameValueCollection appSettings = ConfigurationManager.AppSettings;
 
@@ -755,7 +758,10 @@ namespace SelfServiceSessionReset.Controllers
                                 {
                                     ApplicationState = "Application not running";
                                 }
-                                ApplicationStateLastChangeTime = obj.Properties["AppStateLastChangeTime"].Value.ToString();
+                                if (obj.Properties["AppStateLastChangeTime"].Value != null)
+                                {
+                                    ApplicationStateLastChangeTime = obj.Properties["AppStateLastChangeTime"].Value.ToString();
+                                }
                                 // The ApplicationsInUse value is a System.String[] which is an array that can have a lower bound other than zero.
                                 // They are incompatible with a regular string[] array, so we for need to cast it to a System.Array and work with it that way.
                                 // Then we use LINQ (System.Linq namespace) to convert the System.Array to string[] and we get the desired outcome.

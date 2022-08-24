@@ -1,8 +1,8 @@
 ﻿<!DOCTYPE html>
 <!--
-Version 1.9
+Version 1.10
 Written by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th June 2020
-Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 1st June 2022
+Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 24th August 2022
 -->
 <html>
 <head>
@@ -174,7 +174,7 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 1st June 2022
             </div>
         </header>
         <p><b id="welcome"></b></p>
-        <div class="content-selection">
+        <div class="content-selection" id="SiteDropdownList" style="display:none">
             Please select a Citrix environment:
             <select id="selectEnvironment">
             </select>
@@ -296,6 +296,7 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 1st June 2022
         var EnableInstructions = true;
         var BypassCriteriaChecksForHideSessions = false;
         var EnableUnhideSessions = false;
+        var EnumerateSessionsFromAllSites = false;
 
         //// Detect language as ISO-639 Language code and, ISO-3166 country code
         //var language = window.navigator.language || window.navigator.userLanguage || "en";
@@ -424,6 +425,10 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 1st June 2022
                 document.getElementById("InstructionsSection").style.display = "";
                 buildInstructions()
             };
+            if (!EnumerateSessionsFromAllSites) {
+                // Make the SiteDropdownList visible
+                document.getElementById("SiteDropdownList").style.display = "";
+            }
         });
 
         // Initialize the dialog box
@@ -551,6 +556,7 @@ Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 1st June 2022
                         if (EnableUnhideSessions) {
                             // Enable the unhideSessions button
                             $("#unhideSessions").attr("disabled", false);
+
                         }
                     }
                 }
