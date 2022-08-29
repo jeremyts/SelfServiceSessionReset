@@ -1,6 +1,6 @@
-﻿// Version 1.11
+﻿// Version 1.12
 // Written by Jeremy Saunders (jeremy@jhouseconsulting.com) 13th June 2020
-// Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 24th August 2022
+// Modified by Jeremy Saunders (jeremy@jhouseconsulting.com) 29th August 2022
 //
 using System;
 using System.Collections.Generic;
@@ -69,23 +69,47 @@ namespace SelfServiceSessionReset.Controllers
         /// </summary>
         private List<ConfigSettings> GetConfigurationSettings()
         {
-            // Always read from the disk to get the latest setting
-            ConfigurationManager.RefreshSection("appSettings");
-
-            List<ConfigSettings> ConfigurationSettings = new List<ConfigSettings> { };
-            NameValueCollection appSettings = ConfigurationManager.AppSettings;
-
-            foreach (string s in appSettings.AllKeys)
+            StringBuilder stringBuilder = new StringBuilder();
+            stringBuilder.AppendLine("Getting the appSettings from the Web.config...");
+            //string configFile = System.Web.HttpContext.Current != null ?
+            //    System.AppDomain.CurrentDomain.BaseDirectory :
+            //    System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+            //stringBuilder.AppendLine(" - Looking in the '" + configFile + "' directory.");
+            bool refreshAppSettings = false;
+            if (refreshAppSettings)
             {
-                if (s.IndexOf("sssrt", StringComparison.CurrentCultureIgnoreCase) == 0)
+                // Always read from the disk to get the latest setting
+                ConfigurationManager.RefreshSection("appSettings");
+            }
+            List<ConfigSettings> ConfigurationSettings = new List<ConfigSettings> { };
+            var applicationSettings = ConfigurationManager.GetSection("appSettings") as NameValueCollection;
+            if (applicationSettings != null)
+            {
+                if (applicationSettings.Count > 0)
                 {
-                    ConfigurationSettings.Add(new ConfigSettings
+                    foreach (var s in applicationSettings.AllKeys)
                     {
-                        key = s.Split(':')[1],
-                        value = appSettings.Get(s)
-                    });
+                        if (s.IndexOf("sssrt", StringComparison.CurrentCultureIgnoreCase) == 0)
+                        {
+                            stringBuilder.AppendLine("- " + s + " = " + applicationSettings[s]);
+                            ConfigurationSettings.Add(new ConfigSettings
+                            {
+                                key = s.Split(':')[1],
+                                value = applicationSettings[s]
+                            });
+                        }
+                    }
+                }
+                else
+                {
+                    stringBuilder.AppendLine("- appSettings are not defined");
                 }
             }
+            else
+            {
+                stringBuilder.AppendLine("- there is no appSettings section");
+            }
+            Log.Debug(stringBuilder.ToString().Substring(0, stringBuilder.ToString().Length - 1));
             return ConfigurationSettings;
         }
 
@@ -661,6 +685,7 @@ namespace SelfServiceSessionReset.Controllers
         /// <returns></returns>
         private List<CtxSession> GetCurrentSessions(string SiteName, string AdminAddress, string UserName)
         {
+            int MaxRecordCount = 1000;
             StringBuilder stringBuilder = new StringBuilder();
             List<CtxSession> sessions = new List<CtxSession> { };
 
@@ -679,8 +704,11 @@ namespace SelfServiceSessionReset.Controllers
 
                 Pipeline pipeline = runSpace.CreatePipeline();
                 Command getSession = new Command("Get-BrokerSession");
-                getSession.Parameters.Add("AdminAddress", AdminAddress);
-                getSession.Parameters.Add("MaxRecordCount", 99999);
+                if (!string.IsNullOrEmpty(AdminAddress))
+                {
+                    getSession.Parameters.Add("AdminAddress", AdminAddress);
+                }
+                getSession.Parameters.Add("MaxRecordCount", MaxRecordCount);
                 if (UserName.IndexOf("@") == -1)
                 {
                     getSession.Parameters.Add("UserName", UserName);
@@ -858,7 +886,10 @@ namespace SelfServiceSessionReset.Controllers
 
             Pipeline pipeline = runSpace.CreatePipeline();
             Command getMachine = new Command("Get-BrokerMachine");
-            getMachine.Parameters.Add("AdminAddress", AdminAddress);
+            if (!string.IsNullOrEmpty(AdminAddress))
+            {
+                getMachine.Parameters.Add("AdminAddress", AdminAddress);
+            }
             getMachine.Parameters.Add("MachineName", MachineName);
             pipeline.Commands.Add(getMachine);
             try
@@ -1005,7 +1036,10 @@ namespace SelfServiceSessionReset.Controllers
             {
                 Pipeline pipeline = runSpace.CreatePipeline();
                 Command getSession = new Command("Get-BrokerSession");
-                getSession.Parameters.Add("AdminAddress", AdminAddress);
+                if (!string.IsNullOrEmpty(AdminAddress))
+                {
+                    getSession.Parameters.Add("AdminAddress", AdminAddress);
+                }
                 getSession.Parameters.Add("MachineName", "*\\" + machinename);
                 if (UserName.IndexOf("@") == -1)
                 {
@@ -1102,7 +1136,10 @@ namespace SelfServiceSessionReset.Controllers
                 stringBuilder.AppendLine("Restarting " + machinename);
                 Pipeline pipeline = runSpace.CreatePipeline();
                 Command getSession = new Command("New-BrokerHostingPowerAction");
-                getSession.Parameters.Add("AdminAddress", AdminAddress);
+                if (!string.IsNullOrEmpty(AdminAddress))
+                {
+                    getSession.Parameters.Add("AdminAddress", AdminAddress);
+                }
                 getSession.Parameters.Add("MachineName", machinename);
                 if (reset == false)
                 {
@@ -1174,7 +1211,10 @@ namespace SelfServiceSessionReset.Controllers
                 stringBuilder.AppendLine("Hiding session on " + machinename);
                 Pipeline pipeline = runSpace.CreatePipeline();
                 Command getSession = new Command("Get-BrokerSession");
-                getSession.Parameters.Add("AdminAddress", AdminAddress);
+                if (!string.IsNullOrEmpty(AdminAddress))
+                {
+                    getSession.Parameters.Add("AdminAddress", AdminAddress);
+                }
                 getSession.Parameters.Add("MachineName", "*\\" + machinename);
                 if (UserName.IndexOf("@") == -1)
                 {
@@ -1359,17 +1399,20 @@ namespace SelfServiceSessionReset.Controllers
         {
             int.TryParse(port, out int intport);
             string deliverycontroller = string.Empty;
-            string[] strArray = deliverycontrollers.Split(',');
-            foreach (string strItem in strArray)
+            if (!string.IsNullOrEmpty(deliverycontrollers))
             {
-                deliverycontroller = strItem;
-                if (XDPing(deliverycontroller, intport))
+                string[] strArray = deliverycontrollers.Split(',');
+                foreach (string strItem in strArray)
                 {
-                    break;
-                }
-                else
-                {
-                    deliverycontroller = string.Empty;
+                    deliverycontroller = strItem;
+                    if (XDPing(deliverycontroller, intport))
+                    {
+                        break;
+                    }
+                    else
+                    {
+                        deliverycontroller = string.Empty;
+                    }
                 }
             }
             string username = GetLoggedOnUser();
@@ -1377,13 +1420,20 @@ namespace SelfServiceSessionReset.Controllers
             {
                 username = GetADUserProperties().userPrincipalName;
             }
-            if (!string.IsNullOrEmpty(deliverycontroller))
+            if (!string.IsNullOrEmpty(deliverycontrollers))
             {
-                Log.Information("Getting sessions for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+                if (!string.IsNullOrEmpty(deliverycontroller))
+                {
+                    Log.Information("Getting sessions for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+                }
+                else
+                {
+                    Log.Information("No healthy Delivery Controllers can be found. Enable Debug logging to get more information if needed.");
+                }
             }
             else
             {
-                Log.Information("No healthy Delivery Controllers can be found. Enable Debug logging to get more information if needed.");
+                Log.Information("Getting sessions for " + username + " from the " + sitename + " Site.");
             }
             return GetCurrentSessions(sitename, deliverycontroller, username);
         }
@@ -1403,17 +1453,20 @@ namespace SelfServiceSessionReset.Controllers
         {
             int.TryParse(port, out int intport);
             string deliverycontroller = string.Empty;
-            string[] strArray = deliverycontrollers.Split(',');
-            foreach (string strItem in strArray)
+            if (!string.IsNullOrEmpty(deliverycontrollers))
             {
-                deliverycontroller = strItem;
-                if (XDPing(deliverycontroller, intport))
+                string[] strArray = deliverycontrollers.Split(',');
+                foreach (string strItem in strArray)
                 {
-                    break;
-                }
-                else
-                {
-                    deliverycontroller = string.Empty;
+                    deliverycontroller = strItem;
+                    if (XDPing(deliverycontroller, intport))
+                    {
+                        break;
+                    }
+                    else
+                    {
+                        deliverycontroller = string.Empty;
+                    }
                 }
             }
             string username = GetLoggedOnUser();
@@ -1421,7 +1474,21 @@ namespace SelfServiceSessionReset.Controllers
             {
                 username = GetADUserProperties().userPrincipalName;
             }
-            Log.Information("Getting the session running on" + machinename + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+            if (!string.IsNullOrEmpty(deliverycontrollers))
+            {
+                if (!string.IsNullOrEmpty(deliverycontroller))
+                {
+                    Log.Information("Getting the session running on" + machinename + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.");
+                }
+                else
+                {
+                    Log.Information("No healthy Delivery Controllers can be found. Enable Debug logging to get more information if needed.");
+                }
+            }
+            else
+            {
+                Log.Information("Getting the session running on" + machinename + " for " + username + " from the " + sitename + " Site.");
+            }
             CtxSession[] sessionArray = GetCurrentSessions(sitename, deliverycontroller, username).Where<CtxSession>(c => c.MachineName.Contains(machinename)).ToArray<CtxSession>();
             return sessionArray;
         }
@@ -1437,36 +1504,44 @@ namespace SelfServiceSessionReset.Controllers
         [HttpDelete]
         public IHttpActionResult LogoffSessionsByMachineName([FromBody]CtxSessionsToAction logoffinfo)
         {
-            bool EnableThisMethod = false;
-            var pair = GetConfigurationSettings().FirstOrDefault(x => x.key == "EnableLogoffSessions");
-            if (pair != null)
-            {
-                Boolean.TryParse(pair.value.ToString(), out EnableThisMethod);
-            }
             string result = string.Empty;
+            bool EnableThisMethod = false;
+            if (ConfigurationManager.AppSettings.AllKeys.Contains("sssrt:EnableLogoffSessions"))
+            {
+                result += "The EnableLogoffSessions appSetting is set to " + ConfigurationManager.AppSettings["sssrt:EnableLogoffSessions"] + " in the Web.config." + Environment.NewLine;
+                Log.Debug("The EnableLogoffSessions appSetting is set to " + ConfigurationManager.AppSettings["sssrt:EnableLogoffSessions"] + " in the Web.config.");
+                Boolean.TryParse(ConfigurationManager.AppSettings["sssrt:EnableLogoffSessions"], out EnableThisMethod);
+            }
+            else
+            {
+                result += "The EnableLogoffSessions appSetting was not found in the Web.config." + Environment.NewLine;
+                Log.Debug("The EnableLogoffSessions appSetting was not found in the Web.config.");
+            }
             if (EnableThisMethod)
             {
                 bool SendEmail = false;
-                pair = GetConfigurationSettings().FirstOrDefault(x => x.key == "EnableEmailForLogoffSessions");
-                if (pair != null)
+                if (ConfigurationManager.AppSettings.AllKeys.Contains("sssrt:EnableEmailForLogoffSessions"))
                 {
-                    Boolean.TryParse(pair.value.ToString(), out SendEmail);
+                    Boolean.TryParse(ConfigurationManager.AppSettings["sssrt:EnableEmailForLogoffSessions"], out SendEmail);
                 }
                 bool disconnect = false;
                 int.TryParse(logoffinfo.Port, out int intport);
                 string sitename = logoffinfo.SiteName;
                 string deliverycontroller = string.Empty;
-                string[] strArray = logoffinfo.DeliveryControllers.Split(',');
-                foreach (string strItem in strArray)
+                if (!string.IsNullOrEmpty(logoffinfo.DeliveryControllers))
                 {
-                    deliverycontroller = strItem;
-                    if (XDPing(deliverycontroller, intport))
+                    string[] strArray = logoffinfo.DeliveryControllers.Split(',');
+                    foreach (string strItem in strArray)
                     {
-                        break;
-                    }
-                    else
-                    {
-                        deliverycontroller = string.Empty;
+                        deliverycontroller = strItem;
+                        if (XDPing(deliverycontroller, intport))
+                        {
+                            break;
+                        }
+                        else
+                        {
+                            deliverycontroller = string.Empty;
+                        }
                     }
                 }
                 string username = GetLoggedOnUser();
@@ -1474,10 +1549,18 @@ namespace SelfServiceSessionReset.Controllers
                 {
                     username = GetADUserProperties().userPrincipalName;
                 }
+                string message = string.Empty;
                 string[] machinearray = logoffinfo.MachineNames.ToArray();
                 if (string.Join(",", logoffinfo.MachineNames).IndexOf(",") < 0)
                 {
-                    string message = "Logging off the session from " + string.Join(",", logoffinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                    if (!string.IsNullOrEmpty(logoffinfo.DeliveryControllers))
+                    {
+                        message = "Logging off the session from " + string.Join(",", logoffinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                    }
+                    else
+                    {
+                        message = "Logging off the session from " + string.Join(",", logoffinfo.MachineNames) + " for " + username + " from the " + sitename + " Site.";
+                    }
                     Log.Information(message);
                     if (SendEmail)
                     {
@@ -1486,7 +1569,14 @@ namespace SelfServiceSessionReset.Controllers
                 }
                 else
                 {
-                    string message = "Logging off the sessions from " + string.Join(",", logoffinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                    if (!string.IsNullOrEmpty(logoffinfo.DeliveryControllers))
+                    {
+                        message = "Logging off the sessions from " + string.Join(",", logoffinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                    }
+                    else
+                    {
+                        message = "Logging off the sessions from " + string.Join(",", logoffinfo.MachineNames) + " for " + username + " from the " + sitename + " Site.";
+                    }
                     Log.Information(message);
                     if (SendEmail)
                     {
@@ -1499,8 +1589,6 @@ namespace SelfServiceSessionReset.Controllers
             {
                 result += "The LogoffSessions method is disabled" + Environment.NewLine;
                 Log.Debug("The LogoffSessions method is disabled");
-                result += "The EnableLogoffSessions appSetting is set to False in the Web.config." + Environment.NewLine;
-                Log.Debug("The EnableLogoffSessions appSetting is set to False in the Web.config.");
             }
             return Ok(result);
         }
@@ -1516,36 +1604,44 @@ namespace SelfServiceSessionReset.Controllers
         [HttpPut]
         public IHttpActionResult DisconnectSessionsByMachineName([FromBody]CtxSessionsToAction disconnectinfo)
         {
-            bool EnableThisMethod = false;
-            var pair = GetConfigurationSettings().FirstOrDefault(x => x.key == "EnableDisconnectSessions");
-            if (pair != null)
-            {
-                Boolean.TryParse(pair.value.ToString(), out EnableThisMethod);
-            }
             string result = string.Empty;
+            bool EnableThisMethod = false;
+            if (ConfigurationManager.AppSettings.AllKeys.Contains("sssrt:EnableDisconnectSessions"))
+            {
+                result += "The EnableDisconnectSessions appSetting is set to " + ConfigurationManager.AppSettings["sssrt:EnableDisconnectSessions"] + " in the Web.config." + Environment.NewLine;
+                Log.Debug("The EnableDisconnectSessions appSetting is set to " + ConfigurationManager.AppSettings["sssrt:EnableDisconnectSessions"] + " in the Web.config.");
+                Boolean.TryParse(ConfigurationManager.AppSettings["sssrt:EnableDisconnectSessions"], out EnableThisMethod);
+            }
+            else
+            {
+                result += "The EnableLogoffSessions appSetting was not found in the Web.config." + Environment.NewLine;
+                Log.Debug("The EnableLogoffSessions appSetting was not found in the Web.config.");
+            }
             if (EnableThisMethod)
             {
                 bool SendEmail = false;
-                pair = GetConfigurationSettings().FirstOrDefault(x => x.key == "EnableEmailForDisconnectSessions");
-                if (pair != null)
+                if (ConfigurationManager.AppSettings.AllKeys.Contains("sssrt:EnableEmailForDisconnectSessions"))
                 {
-                    Boolean.TryParse(pair.value.ToString(), out SendEmail);
+                    Boolean.TryParse(ConfigurationManager.AppSettings["sssrt:EnableEmailForDisconnectSessions"], out SendEmail);
                 }
                 bool disconnect = true;
                 int.TryParse(disconnectinfo.Port, out int intport);
                 string sitename = disconnectinfo.SiteName;
                 string deliverycontroller = string.Empty;
-                string[] strArray = disconnectinfo.DeliveryControllers.Split(',');
-                foreach (string strItem in strArray)
+                if (!string.IsNullOrEmpty(disconnectinfo.DeliveryControllers))
                 {
-                    deliverycontroller = strItem;
-                    if (XDPing(deliverycontroller, intport))
+                    string[] strArray = disconnectinfo.DeliveryControllers.Split(',');
+                    foreach (string strItem in strArray)
                     {
-                        break;
-                    }
-                    else
-                    {
-                        deliverycontroller = string.Empty;
+                        deliverycontroller = strItem;
+                        if (XDPing(deliverycontroller, intport))
+                        {
+                            break;
+                        }
+                        else
+                        {
+                            deliverycontroller = string.Empty;
+                        }
                     }
                 }
                 string username = GetLoggedOnUser();
@@ -1553,10 +1649,19 @@ namespace SelfServiceSessionReset.Controllers
                 {
                     username = GetADUserProperties().userPrincipalName;
                 }
+                string message = string.Empty;
                 string[] machinearray = disconnectinfo.MachineNames.ToArray();
                 if (string.Join(",", disconnectinfo.MachineNames).IndexOf(",") < 0)
                 {
-                    string message = "Disconnecting session from " + string.Join(",", disconnectinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                    if (!string.IsNullOrEmpty(disconnectinfo.DeliveryControllers))
+                    {
+
+                        message = "Disconnecting session from " + string.Join(",", disconnectinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                    }
+                    else
+                    {
+                        message = "Disconnecting session from " + string.Join(",", disconnectinfo.MachineNames) + " for " + username + " from the " + sitename + " Site.";
+                    }
                     Log.Information(message);
                     if (SendEmail)
                     {
@@ -1565,7 +1670,14 @@ namespace SelfServiceSessionReset.Controllers
                 }
                 else
                 {
-                    string message = "Disconnecting sessions from " + string.Join(",", disconnectinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                    if (!string.IsNullOrEmpty(disconnectinfo.DeliveryControllers))
+                    {
+                        message = "Disconnecting sessions from " + string.Join(",", disconnectinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                    }
+                    else
+                    {
+                        message = "Disconnecting sessions from " + string.Join(",", disconnectinfo.MachineNames) + " for " + username + " from the " + sitename + " Site.";
+                    }
                     Log.Information(message);
                     if (SendEmail)
                     {
@@ -1578,8 +1690,6 @@ namespace SelfServiceSessionReset.Controllers
             {
                 result += "The DisconnectSessions method is disabled" + Environment.NewLine;
                 Log.Debug("The DisconnectSessions method is disabled");
-                result += "The EnableDisconnectSessions appSetting is set to False in the Web.config." + Environment.NewLine;
-                Log.Debug("The EnableDisconnectSessions appSetting is set to False in the Web.config.");
             }
             return Ok(result);
         }
@@ -1599,43 +1709,60 @@ namespace SelfServiceSessionReset.Controllers
         public IHttpActionResult RestartMachinesByMachineName([FromBody]CtxSessionsToAction restartinfo)
         {
             bool reset = restartinfo.Reset;
+            string result = string.Empty;
             bool EnableThisMethod = false;
-            var pair = new ConfigSettings();
             if (!reset)
             {
-                pair = GetConfigurationSettings().FirstOrDefault(x => x.key == "EnableGracefulMachineRestart");
+                if (ConfigurationManager.AppSettings.AllKeys.Contains("sssrt:EnableGracefulMachineRestart"))
+                {
+                    result += "The EnableGracefulMachineRestart appSetting is set to " + ConfigurationManager.AppSettings["sssrt:EnableGracefulMachineRestart"] + " in the Web.config." + Environment.NewLine;
+                    Log.Debug("The EnableGracefulMachineRestart appSetting is set to " + ConfigurationManager.AppSettings["sssrt:EnableGracefulMachineRestart"] + " in the Web.config.");
+                    Boolean.TryParse(ConfigurationManager.AppSettings["sssrt:EnableGracefulMachineRestart"], out EnableThisMethod);
+                }
+                else
+                {
+                    result += "The EnableGracefulMachineRestart appSetting was not found in the Web.config." + Environment.NewLine;
+                    Log.Debug("The EnableGracefulMachineRestart appSetting was not found in the Web.config.");
+                }
             }
             else
             {
-                pair = GetConfigurationSettings().FirstOrDefault(x => x.key == "EnableForcedMachineRestart");
+                if (ConfigurationManager.AppSettings.AllKeys.Contains("sssrt:EnableForcedMachineRestart"))
+                {
+                    result += "The EnableForcedMachineRestart appSetting is set to " + ConfigurationManager.AppSettings["sssrt:EnableForcedMachineRestart"] + " in the Web.config." + Environment.NewLine;
+                    Log.Debug("The EnableForcedMachineRestart appSetting is set to " + ConfigurationManager.AppSettings["sssrt:EnableForcedMachineRestart"] + " in the Web.config.");
+                    Boolean.TryParse(ConfigurationManager.AppSettings["sssrt:EnableForcedMachineRestart"], out EnableThisMethod);
+                }
+                else
+                {
+                    result += "The EnableForcedMachineRestart appSetting was not found in the Web.config." + Environment.NewLine;
+                    Log.Debug("The EnableForcedMachineRestart appSetting was not found in the Web.config.");
+                }
             }
-            if (pair != null)
-            {
-                Boolean.TryParse(pair.value.ToString(), out EnableThisMethod);
-            }
-            string result = string.Empty;
             if (EnableThisMethod)
             {
                 bool SendEmail = false;
-                pair = GetConfigurationSettings().FirstOrDefault(x => x.key == "EnableEmailForMachineRestart");
-                if (pair != null)
+                if (ConfigurationManager.AppSettings.AllKeys.Contains("sssrt:EnableEmailForMachineRestart"))
                 {
-                    Boolean.TryParse(pair.value.ToString(), out SendEmail);
+                    Boolean.TryParse(ConfigurationManager.AppSettings["sssrt:EnableEmailForMachineRestart"], out SendEmail);
                 }
                 int.TryParse(restartinfo.Port, out int intport);
                 string sitename = restartinfo.SiteName;
                 string deliverycontroller = string.Empty;
-                string[] strArray = restartinfo.DeliveryControllers.Split(',');
-                foreach (string strItem in strArray)
+                if (!string.IsNullOrEmpty(restartinfo.DeliveryControllers))
                 {
-                    deliverycontroller = strItem;
-                    if (XDPing(deliverycontroller, intport))
+                    string[] strArray = restartinfo.DeliveryControllers.Split(',');
+                    foreach (string strItem in strArray)
                     {
-                        break;
-                    }
-                    else
-                    {
-                        deliverycontroller = string.Empty;
+                        deliverycontroller = strItem;
+                        if (XDPing(deliverycontroller, intport))
+                        {
+                            break;
+                        }
+                        else
+                        {
+                            deliverycontroller = string.Empty;
+                        }
                     }
                 }
                 string username = GetLoggedOnUser();
@@ -1670,11 +1797,19 @@ namespace SelfServiceSessionReset.Controllers
                 }
                 if (CriteriaMetList.ToArray().Length > 0)
                 {
+                    string message = string.Empty;
                     if (!reset)
                     {
                         if (string.Join(",", CriteriaMetList).IndexOf(",") < 0)
                         {
-                            string message = "Restarting machine " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                            if (!string.IsNullOrEmpty(restartinfo.DeliveryControllers))
+                            {
+                                message = "Restarting machine " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                            }
+                            else 
+                            {
+                                message = "Restarting machine " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site.";
+                            }
                             Log.Information(message);
                             if (SendEmail)
                             {
@@ -1683,7 +1818,14 @@ namespace SelfServiceSessionReset.Controllers
                         }
                         else
                         {
-                            string message = "Restarting machines " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                            if (!string.IsNullOrEmpty(restartinfo.DeliveryControllers))
+                            {
+                                message = "Restarting machines " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                            }
+                            else
+                            {
+                                message = "Restarting machines " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site.";
+                            }
                             Log.Information(message);
                             if (SendEmail)
                             {
@@ -1695,7 +1837,14 @@ namespace SelfServiceSessionReset.Controllers
                     {
                         if (string.Join(",", CriteriaMetList).IndexOf(",") < 0)
                         {
-                            string message = "Forcefully restarting machine " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                            if (!string.IsNullOrEmpty(restartinfo.DeliveryControllers))
+                            {
+                                message = "Forcefully restarting machine " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                            }
+                            else
+                            {
+                                message = "Forcefully restarting machine " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site.";
+                            }
                             Log.Information(message);
                             if (SendEmail)
                             {
@@ -1704,7 +1853,14 @@ namespace SelfServiceSessionReset.Controllers
                         }
                         else
                         {
-                            string message = "Forcefully restarting machines " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                            if (!string.IsNullOrEmpty(restartinfo.DeliveryControllers))
+                            {
+                                message = "Forcefully restarting machines " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                            }
+                            else
+                            {
+                                message = "Forcefully restarting machines " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site.";
+                            }
                             Log.Information(message);
                             if (SendEmail)
                             {
@@ -1730,16 +1886,6 @@ namespace SelfServiceSessionReset.Controllers
             {
                 result += "The RestartMachines method is disabled." + Environment.NewLine;
                 Log.Debug("The RestartMachines method is disabled.");
-                if (!reset)
-                {
-                    result += "The EnableGracefulMachineRestart appSetting is set to False in the Web.config." + Environment.NewLine;
-                    Log.Debug("The EnableGracefulMachineRestart appSetting is set to False in the Web.config.");
-                }
-                else
-                {
-                    result += "The EnableForcedMachineRestart appSetting is set to False in the Web.config." + Environment.NewLine;
-                    Log.Debug("The EnableForcedMachineRestart appSetting is set to False in the Web.config.");
-                }
             }
             return Ok(result);
         }
@@ -1763,51 +1909,74 @@ namespace SelfServiceSessionReset.Controllers
         {
             bool hide = hideinfo.Hide;
             bool EnableThisMethod = false;
-            var pair = new ConfigSettings();
+            string result = string.Empty;
             if (hide)
             {
-                pair = GetConfigurationSettings().FirstOrDefault(x => x.key == "EnableHideStuckSessions");
+                if (ConfigurationManager.AppSettings.AllKeys.Contains("sssrt:EnableHideStuckSessions"))
+                {
+                    result += "The EnableHideStuckSessions appSetting is set to " + ConfigurationManager.AppSettings["sssrt:EnableHideStuckSessions"] + " in the Web.config." + Environment.NewLine;
+                    Log.Debug("The EnableHideStuckSessions appSetting is set to " + ConfigurationManager.AppSettings["sssrt:EnableHideStuckSessions"] + " in the Web.config.");
+                    Boolean.TryParse(ConfigurationManager.AppSettings["sssrt:EnableHideStuckSessions"], out EnableThisMethod);
+                }
+                else
+                {
+                    result += "The EnableHideStuckSessions appSetting was not found in the Web.config." + Environment.NewLine;
+                    Log.Debug("The EnableHideStuckSessions appSetting was not found in the Web.config.");
+                }
             }
             else
             {
-                pair = GetConfigurationSettings().FirstOrDefault(x => x.key == "EnableUnhideSessions");
+                if (ConfigurationManager.AppSettings.AllKeys.Contains("sssrt:EnableUnhideSessions"))
+                {
+                    result += "The EnableUnhideSessions appSetting is set to " + ConfigurationManager.AppSettings["sssrt:EnableUnhideSessions"] + " in the Web.config." + Environment.NewLine;
+                    Log.Debug("The EnableUnhideSessions appSetting is set to " + ConfigurationManager.AppSettings["sssrt:EnableUnhideSessions"] + " in the Web.config.");
+                    Boolean.TryParse(ConfigurationManager.AppSettings["sssrt:EnableUnhideSessions"], out EnableThisMethod);
+                }
+                else
+                {
+                    result += "The EnableUnhideSessions appSetting was not found in the Web.config." + Environment.NewLine;
+                    Log.Debug("The EnableUnhideSessions appSetting was not found in the Web.config.");
+                }
             }
-            if (pair != null)
-            {
-                Boolean.TryParse(pair.value.ToString(), out EnableThisMethod);
-            }
-            string result = string.Empty;
             if (EnableThisMethod)
             {
                 bool SendEmail = false;
-                pair = GetConfigurationSettings().FirstOrDefault(x => x.key == "EnableEmailForHideSessions");
-                if (pair != null)
+                if (ConfigurationManager.AppSettings.AllKeys.Contains("sssrt:EnableEmailForHideSessions"))
                 {
-                    Boolean.TryParse(pair.value.ToString(), out SendEmail);
+                    Boolean.TryParse(ConfigurationManager.AppSettings["sssrt:EnableEmailForHideSessions"], out SendEmail);
                 }
                 bool bypassCriteria = false;
                 if (hide)
                 {
-                    pair = GetConfigurationSettings().FirstOrDefault(x => x.key == "BypassCriteriaChecksForHideSessions");
-                    if (pair != null)
+                    if (ConfigurationManager.AppSettings.AllKeys.Contains("sssrt:BypassCriteriaChecksForHideSessions"))
                     {
-                        Boolean.TryParse(pair.value.ToString(), out bypassCriteria);
+                        result += "The BypassCriteriaChecksForHideSessions appSetting is set to " + ConfigurationManager.AppSettings["sssrt:BypassCriteriaChecksForHideSessions"] + " in the Web.config." + Environment.NewLine;
+                        Log.Debug("The BypassCriteriaChecksForHideSessions appSetting is set to " + ConfigurationManager.AppSettings["sssrt:BypassCriteriaChecksForHideSessions"] + " in the Web.config.");
+                        Boolean.TryParse(ConfigurationManager.AppSettings["sssrt:BypassCriteriaChecksForHideSessions"], out bypassCriteria);
+                    }
+                    else
+                    {
+                        result += "The BypassCriteriaChecksForHideSessions appSetting was not found in the Web.config." + Environment.NewLine;
+                        Log.Debug("The BypassCriteriaChecksForHideSessions appSetting was not found in the Web.config.");
                     }
                 }
                 int.TryParse(hideinfo.Port, out int intport);
                 string sitename = hideinfo.SiteName;
                 string deliverycontroller = string.Empty;
-                string[] strArray = hideinfo.DeliveryControllers.Split(',');
-                foreach (string strItem in strArray)
+                if (!string.IsNullOrEmpty(hideinfo.DeliveryControllers))
                 {
-                    deliverycontroller = strItem;
-                    if (XDPing(deliverycontroller, intport))
+                    string[] strArray = hideinfo.DeliveryControllers.Split(',');
+                    foreach (string strItem in strArray)
                     {
-                        break;
-                    }
-                    else
-                    {
-                        deliverycontroller = string.Empty;
+                        deliverycontroller = strItem;
+                        if (XDPing(deliverycontroller, intport))
+                        {
+                            break;
+                        }
+                        else
+                        {
+                            deliverycontroller = string.Empty;
+                        }
                     }
                 }
                 string username = GetLoggedOnUser();
@@ -1815,6 +1984,7 @@ namespace SelfServiceSessionReset.Controllers
                 {
                     username = GetADUserProperties().userPrincipalName;
                 }
+                string message = string.Empty;
                 string[] machinearray = hideinfo.MachineNames.ToArray();
                 if (hide && !bypassCriteria)
                 {
@@ -1846,7 +2016,14 @@ namespace SelfServiceSessionReset.Controllers
                     {
                         if (string.Join(",", CriteriaMetList).IndexOf(",") < 0)
                         {
-                            string message = "Hiding session from machine " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                            if (!string.IsNullOrEmpty(hideinfo.DeliveryControllers))
+                            {
+                                message = "Hiding session from machine " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                            }
+                            else
+                            {
+                                message = "Hiding session from machine " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site.";
+                            }
                             Log.Information(message);
                             if (SendEmail)
                             {
@@ -1855,7 +2032,14 @@ namespace SelfServiceSessionReset.Controllers
                         }
                         else
                         {
-                            string message = "Hiding sessions from machines " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                            if (!string.IsNullOrEmpty(hideinfo.DeliveryControllers))
+                            {
+                                message = "Hiding sessions from machines " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                            }
+                            else
+                            {
+                                message = "Hiding sessions from machines " + string.Join(",", CriteriaMetList) + " for " + username + " from the " + sitename + " Site.";
+                            }
                             Log.Information(message);
                             if (SendEmail)
                             {
@@ -1882,7 +2066,14 @@ namespace SelfServiceSessionReset.Controllers
                     {
                         if (string.Join(",", hideinfo.MachineNames).IndexOf(",") < 0)
                         {
-                            string message = "Hiding session on machine " + string.Join(",", hideinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller bypassing the criteria checks.";
+                            if (!string.IsNullOrEmpty(hideinfo.DeliveryControllers))
+                            {
+                                message = "Hiding session on machine " + string.Join(",", hideinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller bypassing the criteria checks.";
+                            }
+                            else
+                            {
+                                message = "Hiding session on machine " + string.Join(",", hideinfo.MachineNames) + " for " + username + " from the " + sitename + " Site bypassing the criteria checks.";
+                            }
                             Log.Information(message);
                             if (SendEmail)
                             {
@@ -1891,7 +2082,14 @@ namespace SelfServiceSessionReset.Controllers
                         }
                         else
                         {
-                            string message = "Hiding sessions on machines " + string.Join(",", hideinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller bypassing the criteria checks.";
+                            if (!string.IsNullOrEmpty(hideinfo.DeliveryControllers))
+                            {
+                                message = "Hiding sessions on machines " + string.Join(",", hideinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller bypassing the criteria checks.";
+                            }
+                            else
+                            {
+                                message = "Hiding sessions on machines " + string.Join(",", hideinfo.MachineNames) + " for " + username + " from the " + sitename + " Site bypassing the criteria checks.";
+                            }
                             Log.Information(message);
                             if (SendEmail)
                             {
@@ -1904,7 +2102,14 @@ namespace SelfServiceSessionReset.Controllers
                     {
                         if (string.Join(",", hideinfo.MachineNames).IndexOf(",") < 0)
                         {
-                            string message = "Unhiding session on machine " + string.Join(",", hideinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                            if (!string.IsNullOrEmpty(hideinfo.DeliveryControllers))
+                            {
+                                message = "Unhiding session on machine " + string.Join(",", hideinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                            }
+                            else
+                            {
+                                message = "Unhiding session on machine " + string.Join(",", hideinfo.MachineNames) + " for " + username + " from the " + sitename + " Site.";
+                            }
                             Log.Information(message);
                             if (SendEmail)
                             {
@@ -1913,7 +2118,14 @@ namespace SelfServiceSessionReset.Controllers
                         }
                         else
                         {
-                            string message = "Unhiding sessions on machines " + string.Join(",", hideinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                            if (!string.IsNullOrEmpty(hideinfo.DeliveryControllers))
+                            {
+                                message = "Unhiding sessions on machines " + string.Join(",", hideinfo.MachineNames) + " for " + username + " from the " + sitename + " Site using the " + deliverycontroller + " Delivery Controller.";
+                            }
+                            else
+                            {
+                                message = "Unhiding sessions on machines " + string.Join(",", hideinfo.MachineNames) + " for " + username + " from the " + sitename + " Site.";
+                            }
                             Log.Information(message);
                             if (SendEmail)
                             {
@@ -1929,16 +2141,6 @@ namespace SelfServiceSessionReset.Controllers
             {
                 result += "The HideSessions method is disabled." + Environment.NewLine;
                 Log.Debug("The HideSessions method is disabled.");
-                if (hide)
-                {
-                    result += "The EnableHideStuckSessions appSetting is set to False in the Web.config." + Environment.NewLine;
-                    Log.Debug("The EnableHideStuckSessions appSetting is set to False in the Web.config.");
-                }
-                else
-                {
-                    result += "The EnableUnhideSessions appSetting is set to False in the Web.config." + Environment.NewLine;
-                    Log.Debug("The EnableUnhideSessions appSetting is set to False in the Web.config.");
-                }
             }
             return Ok(result);
         }
